@@ -24,7 +24,7 @@ async function boot() {
     minWidth: 480,
     minHeight: 400,
     title: 'Fabrik-Koop',
-    backgroundColor: '#1b1f2a',
+    backgroundColor: '#7cc8e8',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false },
