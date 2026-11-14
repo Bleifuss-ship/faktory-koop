@@ -2,6 +2,8 @@
 
 Ein kooperatives Fabrikbau-Spiel im Browser. Mehrere Leute bauen gemeinsam in derselben Welt: Rohstoffe abbauen, über Förderbänder transportieren, in Maschinen verarbeiten und zur Zentrale liefern, um neue Technik zu erforschen. Läuft auf PC und Handy, ohne Installation.
 
+<p align="center"><img src="docs/screenshot-pc.png" width="720" alt="Fabrik-Koop am PC"> <img src="docs/screenshot-handy.png" width="200" alt="Fabrik-Koop am Handy"></p>
+
 ## Apps herunterladen
 
 Fertige Apps gibt es bei jedem Build in GitHub Actions (Reiter „Actions“ → Lauf „Apps bauen“ → „Artifacts“) und bei Versionen unter „Releases“:

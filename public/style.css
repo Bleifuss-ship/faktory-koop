@@ -1,63 +1,77 @@
 :root {
-  --bg: #1b1f2a;
-  --panel: rgba(24, 28, 40, 0.92);
-  --line: #343a4f;
-  --text: #e8ecf4;
-  --muted: #9aa3b8;
-  --accent: #ffb84a;
+  --bg: #7cc8e8;
+  --panel: rgba(255, 255, 255, 0.95);
+  --line: #e4e7ef;
+  --text: #2b3142;
+  --muted: #6b7388;
+  --accent: #f59e2b;
+  --accent-soft: #fff1dc;
+  --shadow: 0 6px 18px rgba(30, 60, 90, 0.18), 0 1px 3px rgba(30, 60, 90, 0.12);
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font: 14px/1.4 "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif; }
 canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
 
-#top { position: fixed; top: 8px; left: 8px; right: 8px; display: flex; justify-content: space-between; gap: 8px; pointer-events: none; }
-#research, #players { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; pointer-events: auto; }
-#research { max-width: 360px; }
-#research-title { font-weight: 700; color: var(--accent); }
-#research-text { color: var(--muted); font-size: 12px; margin-top: 4px; }
-.goal { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 13px; }
-.goal canvas { width: 20px; height: 20px; }
-.bar { flex: 1; height: 6px; min-width: 60px; background: #2a3044; border-radius: 3px; overflow: hidden; }
-.bar > div { height: 100%; background: var(--accent); }
-#players { font-size: 13px; }
+#top { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; pointer-events: none; }
+#research, #players { background: var(--panel); border-radius: 16px; padding: 10px 14px; pointer-events: auto; box-shadow: var(--shadow); }
+#research { min-width: 240px; max-width: 360px; }
+#research-title { font-weight: 800; font-size: 15px; color: var(--text); }
+#research-title::before { content: "🔬 "; }
+#research-text { color: var(--muted); font-size: 12px; margin-top: 6px; }
+.goal { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; font-weight: 600; }
+.goal canvas { width: 26px; height: 26px; background: #f3f5fa; border-radius: 8px; padding: 2px; }
+.goal span { min-width: 112px; }
+.bar { flex: 1; height: 10px; min-width: 60px; background: #eceff5; border-radius: 5px; overflow: hidden; }
+.bar > div { height: 100%; background: linear-gradient(90deg, #ffc25a, var(--accent)); border-radius: 5px; transition: width .3s; }
+#players { font-size: 13px; font-weight: 700; display: flex; flex-direction: column; gap: 4px; }
+#players:empty { display: none; }
 #players div { white-space: nowrap; }
-#players span { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+#players span { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(0,0,0,.08); }
 
-#bottom { position: fixed; left: 0; right: 0; bottom: 8px; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; padding: 0 8px; }
-#info { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; font-size: 12px; color: var(--muted); max-width: 100%; }
+#bottom { position: fixed; left: 0; right: 0; bottom: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; padding: 0 10px; }
+#info { background: var(--panel); border-radius: 12px; padding: 6px 12px; font-size: 13px; font-weight: 600; color: var(--text); max-width: 100%; box-shadow: var(--shadow); text-align: center; }
 #info:empty { display: none; }
-#toolbar { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px; pointer-events: auto; overflow-x: auto; max-width: 100%; }
-#toolbar button { position: relative; width: 52px; height: 52px; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 8px; background: #232838; color: var(--text); cursor: pointer; padding: 0; font-size: 20px; }
-#toolbar button canvas { width: 36px; height: 36px; pointer-events: none; }
-#toolbar button.active { border-color: var(--accent); background: #3a3320; }
-#toolbar button:disabled { opacity: 0.35; cursor: not-allowed; }
-#toolbar button .k { position: absolute; top: 1px; left: 4px; font-size: 10px; color: var(--muted); }
-#toolbar .sep { width: 1px; background: var(--line); margin: 4px 2px; }
+#toolbar { display: flex; gap: 6px; background: var(--panel); border-radius: 20px; padding: 8px; pointer-events: auto; overflow-x: auto; max-width: 100%; box-shadow: var(--shadow); }
+#toolbar button { position: relative; width: 58px; height: 58px; flex: 0 0 auto; border: 0; border-radius: 14px; background: #f3f5fa; color: var(--text); cursor: pointer; padding: 0; font-size: 22px; box-shadow: inset 0 -3px 0 rgba(0,0,0,.07); transition: transform .08s, background .15s; }
+#toolbar button:hover:not(:disabled) { background: #e9edf6; transform: translateY(-2px); }
+#toolbar button:active:not(:disabled) { transform: translateY(1px); }
+#toolbar button canvas { width: 46px; height: 46px; pointer-events: none; display: block; margin: auto; }
+#toolbar button.active { background: var(--accent-soft); box-shadow: inset 0 0 0 3px var(--accent), inset 0 -3px 0 rgba(0,0,0,.07); }
+#toolbar button:disabled { opacity: 0.4; cursor: not-allowed; filter: grayscale(1); }
+#toolbar button:disabled::after { content: "🔒"; position: absolute; right: 2px; bottom: 0; font-size: 13px; }
+#toolbar button .k { position: absolute; top: 2px; left: 6px; font-size: 10px; font-weight: 800; color: var(--muted); }
+#toolbar .sep { width: 2px; border-radius: 1px; background: var(--line); margin: 6px 2px; }
 
-#toast { position: fixed; top: 40%; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--accent); padding: 10px 18px; border-radius: 10px; font-weight: 600; opacity: 0; transition: opacity .3s; pointer-events: none; text-align: center; }
-#toast.show { opacity: 1; }
+#toast { position: fixed; top: 22%; left: 50%; transform: translate(-50%, -8px); background: var(--panel); padding: 12px 20px; border-radius: 16px; font-weight: 800; opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none; text-align: center; box-shadow: var(--shadow); border-bottom: 4px solid var(--accent); max-width: calc(100vw - 32px); }
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
 
-#join { position: fixed; inset: 0; background: rgba(10, 12, 18, 0.85); display: flex; align-items: center; justify-content: center; padding: 16px; }
+#join { position: fixed; inset: 0; background: rgba(90, 170, 210, 0.55); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 16px; overflow-y: auto; }
 #join.hidden { display: none; }
-#join form { background: #222838; border: 1px solid var(--line); border-radius: 14px; padding: 20px 24px; width: 100%; max-width: 380px; }
-#join h1 { margin: 0 0 4px; color: var(--accent); }
-#join label { display: block; margin-top: 12px; font-weight: 600; }
-#join input { display: block; width: 100%; margin-top: 4px; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: #161a24; color: var(--text); font-size: 16px; }
-#join button { margin-top: 16px; width: 100%; padding: 12px; border: 0; border-radius: 8px; background: var(--accent); color: #1b1f2a; font-size: 16px; font-weight: 700; cursor: pointer; }
-#join .hint { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
-#join .lan { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: #161a24; font-size: 13px; }
+#join form { background: #fff; border-radius: 24px; padding: 24px 26px; width: 100%; max-width: 400px; box-shadow: 0 20px 50px rgba(20, 60, 90, 0.3); }
+#join h1 { margin: 0 0 4px; font-size: 30px; font-weight: 900; background: linear-gradient(90deg, #f59e2b, #f06a55 50%, #9a7cf2); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#join h1::before { content: "⚙️ "; -webkit-text-fill-color: initial; }
+#join > form > p:first-of-type { color: var(--muted); margin-top: 0; }
+#join label { display: block; margin-top: 14px; font-weight: 800; font-size: 13px; }
+#join input { display: block; width: 100%; margin-top: 6px; padding: 12px 14px; border-radius: 12px; border: 2px solid var(--line); background: #f7f8fc; color: var(--text); font-size: 16px; font-family: inherit; outline: none; transition: border-color .15s; }
+#join input:focus { border-color: var(--accent); background: #fff; }
+#join button { margin-top: 18px; width: 100%; padding: 14px; border: 0; border-radius: 14px; background: var(--accent); color: #fff; font-size: 17px; font-weight: 900; cursor: pointer; box-shadow: inset 0 -4px 0 rgba(0,0,0,.15); font-family: inherit; }
+#join button:hover { filter: brightness(1.05); }
+#join .hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+#join .lan { margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; background: #eef8ff; font-size: 13px; }
 #join .lan:empty { display: none; }
-#join .lan b { color: var(--accent); user-select: all; }
-#join details { margin-top: 14px; color: var(--muted); font-size: 13px; }
+#join .lan b { color: #2f7fc8; user-select: all; }
+#join details { margin-top: 16px; color: var(--muted); font-size: 13px; }
+#join summary { cursor: pointer; font-weight: 700; }
 #join ul { padding-left: 18px; margin: 6px 0 0; }
 
 @media (max-width: 600px) {
-  #research { max-width: none; flex: 1; }
+  #research { max-width: none; min-width: 0; flex: 1; padding: 8px 12px; }
+  .goal span { min-width: 0; }
   #players { display: none; }
-  #toolbar { gap: 2px; padding: 4px; }
-  #toolbar button { width: 40px; height: 44px; font-size: 18px; }
-  #toolbar button canvas { width: 30px; height: 30px; }
+  #toolbar { gap: 3px; padding: 5px; border-radius: 16px; }
+  #toolbar button { width: 40px; height: 46px; font-size: 18px; border-radius: 11px; }
+  #toolbar button canvas { width: 34px; height: 34px; }
   #toolbar button .k { display: none; }
-  #toolbar .sep { margin: 4px 1px; }
+  #toolbar .sep { margin: 6px 1px; }
 }
