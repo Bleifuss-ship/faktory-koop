@@ -34,7 +34,7 @@
   let hover = null;
   let dpr = 1;
 
-  const TOOLS = ['hand', 'band', 'bohrer', 'schmelze', 'presse', 'montage', 'delete'];
+  let TOOLS = ['hand', 'delete'];
   const DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]];
 
   // ---------- Verbindung ----------
@@ -150,8 +150,9 @@
     if (c.op === 'add') addBuilding(c.b);
     else if (c.op === 'del') removeBuilding(c.id);
     else if (c.op === 'research') {
-      const done = defs.RESEARCH[c.level - 1];
-      if (done) toast(`Forschung abgeschlossen: ${done.name}! ${done.text}`, 4000);
+      const done = defs.TECHS.find((t) => t.id === c.id);
+      if (done) toast(done.win ? `🎉 ${done.name} geschafft! Eure Fabrik ist fertig.` : `Erforscht: ${done.name}! ${done.text}`, 4500);
+      renderTechTree();
     }
   }
 
@@ -205,9 +206,12 @@
     }
     // Vorkommen: helle Bodenflecken mit Steinen, Kristallen oder Sandhügeln
     const DEP = {
-      r: { soil: '#c9c58a', main: '#e8645a', light: '#ff9a8a', dark: '#b8423c' },
-      b: { soil: '#a3c7b4', main: '#4f9cf0', light: '#a8d4ff', dark: '#2f6fc0' },
-      s: { soil: '#dcd895', main: '#f2d58a', light: '#fff2c4', dark: '#cfa95a' },
+      h: { soil: '#7fb85a', main: '#4f9a4a', light: '#7cc46a', dark: '#2f6a34' },
+      t: { soil: '#c4c8b8', main: '#a4aab4', light: '#d4d8e0', dark: '#7a808c' },
+      e: { soil: '#c4ae9e', main: '#9a5a4e', light: '#c48a7e', dark: '#6a3a32' },
+      k: { soil: '#c8cf9a', main: '#f0943c', light: '#6fd8c0', dark: '#c0682a' },
+      c: { soil: '#9a9a8a', main: '#3a3d46', light: '#6a6e7a', dark: '#22242a' },
+      w: { soil: '#b4b0c8', main: '#8a7fb0', light: '#c8c0ee', dark: '#5f5488' },
     };
     for (let y = 0; y < world.h; y++) {
       for (let x = 0; x < world.w; x++) {
@@ -232,7 +236,15 @@
           const r = 3.5 + hash(x, y, 30 + i) * 3.5;
           c.fillStyle = 'rgba(40,70,30,0.22)';
           c.beginPath(); c.ellipse(px + 1, py + r * 0.7, r * 1.05, r * 0.45, 0, 0, Math.PI * 2); c.fill();
-          if (t === 'b') {
+          if (t === 'h') {
+            // Baum von oben: Stamm-Schatten und runde Krone
+            c.fillStyle = d.dark;
+            c.beginPath(); c.arc(px, py + r * 0.2, r * 1.15, 0, Math.PI * 2); c.fill();
+            c.fillStyle = d.main;
+            c.beginPath(); c.arc(px, py, r * 1.05, 0, Math.PI * 2); c.fill();
+            c.fillStyle = d.light;
+            c.beginPath(); c.arc(px - r * 0.35, py - r * 0.35, r * 0.4, 0, Math.PI * 2); c.fill();
+          } else if (t === 'w') {
             // Kristall
             c.fillStyle = d.main;
             c.beginPath();
@@ -240,14 +252,6 @@
             c.lineTo(px - r * 0.5, py + r * 0.6); c.lineTo(px - r * 0.7, py - r * 0.3); c.closePath(); c.fill();
             c.fillStyle = d.light;
             c.beginPath(); c.moveTo(px, py - r * 1.4); c.lineTo(px - r * 0.7, py - r * 0.3); c.lineTo(px - r * 0.1, py); c.closePath(); c.fill();
-          } else if (t === 's') {
-            // Sandhügel
-            c.fillStyle = d.dark;
-            c.beginPath(); c.ellipse(px, py + r * 0.15, r * 1.25, r * 0.75, 0, 0, Math.PI * 2); c.fill();
-            c.fillStyle = d.main;
-            c.beginPath(); c.ellipse(px, py, r * 1.15, r * 0.65, 0, 0, Math.PI * 2); c.fill();
-            c.fillStyle = d.light;
-            c.beginPath(); c.ellipse(px - r * 0.3, py - r * 0.2, r * 0.45, r * 0.22, 0, 0, Math.PI * 2); c.fill();
           } else {
             // runder Stein
             c.fillStyle = d.dark;
@@ -257,6 +261,7 @@
             c.fillStyle = d.light;
             c.beginPath(); c.arc(px - r * 0.3, py - r * 0.35, r * 0.32, 0, Math.PI * 2); c.fill();
           }
+          if (t === 'h') break; // ein Baum pro Feld reicht
         }
       }
     }
@@ -305,10 +310,14 @@
 
   // Farben der Gebäude: Dach (Hauptfarbe) und dunklere Kante
   const KIND_COLORS = {
-    bohrer: ['#f6a83b', '#d4842070'],
-    schmelze: ['#f06a55', '#c8483a70'],
-    presse: ['#5b8ff0', '#3a68c870'],
-    montage: ['#3fc48a', '#22996470'],
+    bohrer: ['#f6a83b'],
+    saege: ['#c98a4b'],
+    schmelze: ['#f06a55'],
+    verteiler: ['#8a94a8'],
+    presse: ['#5b8ff0'],
+    hochofen: ['#d94f6b'],
+    werkbank: ['#3fc48a'],
+    fabrikator: ['#22b8c8'],
     zentrale: ['#9a7cf2', '#6f52c870'],
   };
 
@@ -462,7 +471,47 @@
         roundRect(c, cx - s * 0.2, cy - s * 0.2 + p, s * 0.4, s * 0.12, s * 0.04); c.fill();
         roundRect(c, cx - s * 0.2, cy + s * 0.1, s * 0.4, s * 0.12, s * 0.04); c.fill();
         c.fillRect(cx - s * 0.025, cy - s * 0.26, s * 0.05, s * 0.08 + p);
-      } else if (kind === 'montage') {
+      } else if (kind === 'saege') {
+        c.save();
+        c.translate(cx, cy);
+        c.rotate(spin * 1.5);
+        c.beginPath();
+        for (let i = 0; i < 16; i++) {
+          const a = (i * Math.PI) / 8;
+          const rr = i % 2 ? s * 0.15 : s * 0.21;
+          c.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+        }
+        c.closePath();
+        c.fill();
+        c.fillStyle = roof;
+        c.beginPath(); c.arc(0, 0, s * 0.05, 0, Math.PI * 2); c.fill();
+        c.restore();
+      } else if (kind === 'verteiler') {
+        for (const a of [0, Math.PI / 2, -Math.PI / 2]) {
+          c.save();
+          c.translate(cx, cy);
+          c.rotate(a + d * Math.PI / 2);
+          c.beginPath(); c.moveTo(0, 0); c.lineTo(s * 0.17, 0); c.stroke();
+          c.beginPath(); c.moveTo(s * 0.24, 0); c.lineTo(s * 0.14, -s * 0.07); c.lineTo(s * 0.14, s * 0.07); c.closePath(); c.fill();
+          c.restore();
+        }
+      } else if (kind === 'hochofen') {
+        roundRect(c, cx - s * 0.18, cy - s * 0.04, s * 0.36, s * 0.24, s * 0.05); c.fill();
+        c.fillRect(cx + s * 0.06, cy - s * 0.26, s * 0.09, s * 0.22);
+        const f = opts.busy ? 1 + Math.sin(t * 14) * 0.15 : 0.8;
+        c.fillStyle = opts.busy ? '#ffb030' : roof;
+        c.beginPath(); c.ellipse(cx - s * 0.02, cy + s * 0.09, s * 0.07 * f, s * 0.06 * f, 0, 0, Math.PI * 2); c.fill();
+      } else if (kind === 'fabrikator') {
+        c.save();
+        c.translate(cx - s * 0.12, cy + s * 0.14);
+        c.rotate(-0.6 + (opts.busy ? Math.sin(t * 3) * 0.4 : 0));
+        c.fillRect(-s * 0.04, -s * 0.3, s * 0.08, s * 0.3);
+        c.translate(0, -s * 0.28);
+        c.rotate(1.4);
+        c.fillRect(-s * 0.035, -s * 0.2, s * 0.07, s * 0.2);
+        c.restore();
+        c.beginPath(); c.arc(cx - s * 0.12, cy + s * 0.14, s * 0.07, 0, Math.PI * 2); c.fill();
+      } else if (kind === 'werkbank') {
         c.save();
         c.translate(cx, cy);
         c.rotate(spin * 0.4);
@@ -555,6 +604,40 @@
       case 'bot':
         roundRect(c, cx - r * 0.8, cy - r, r * 1.6, r * 2, r * 0.4);
         break;
+      case 'log':
+        roundRect(c, cx - r, cy - r * 0.45, r * 2, r * 0.9, r * 0.45);
+        break;
+      case 'crystal':
+        c.moveTo(cx, cy - r); c.lineTo(cx + r * 0.6, cy - r * 0.2); c.lineTo(cx + r * 0.4, cy + r * 0.8);
+        c.lineTo(cx - r * 0.4, cy + r * 0.8); c.lineTo(cx - r * 0.6, cy - r * 0.2); c.closePath();
+        break;
+      case 'plank':
+        c.rect(cx - r, cy - r * 0.55, r * 2, r * 0.45);
+        c.rect(cx - r, cy + r * 0.1, r * 2, r * 0.45);
+        break;
+      case 'brick':
+        roundRect(c, cx - r, cy - r * 0.5, r * 2, r, r * 0.12);
+        break;
+      case 'beam':
+        c.rect(cx - r, cy - r * 0.6, r * 2, r * 0.25);
+        c.rect(cx - r * 0.15, cy - r * 0.6, r * 0.3, r * 1.2);
+        c.rect(cx - r, cy + r * 0.35, r * 2, r * 0.25);
+        break;
+      case 'board':
+        roundRect(c, cx - r * 0.9, cy - r * 0.7, r * 1.8, r * 1.4, r * 0.15);
+        break;
+      case 'frame':
+        c.rect(cx - r * 0.85, cy - r * 0.85, r * 1.7, r * 1.7);
+        c.rect(cx - r * 0.5, cy + r * 0.5, r, -r);
+        break;
+      case 'drill':
+        c.moveTo(cx - r * 0.55, cy - r * 0.7); c.lineTo(cx + r * 0.55, cy - r * 0.7); c.lineTo(cx, cy + r); c.closePath();
+        break;
+      case 'arm':
+        c.moveTo(cx - r * 0.8, cy + r * 0.8); c.lineTo(cx - r * 0.8, cy + r * 0.3); c.lineTo(cx - r * 0.2, cy + r * 0.3);
+        c.lineTo(cx + r * 0.2, cy - r * 0.6); c.lineTo(cx + r * 0.8, cy - r * 0.6); c.lineTo(cx + r * 0.8, cy - r * 0.2);
+        c.lineTo(cx + r * 0.45, cy - r * 0.2); c.lineTo(cx + r * 0.05, cy + r * 0.8); c.closePath();
+        break;
       default:
         c.arc(cx, cy, r, 0, Math.PI * 2);
     }
@@ -566,6 +649,9 @@
     if (it.shape === 'coil') { for (let i = -1; i <= 1; i++) c.fillRect(cx - r * 0.7, cy + i * r * 0.45 - r * 0.06, r * 1.4, r * 0.12); }
     if (it.shape === 'bot') { c.fillStyle = '#1b1f2a'; c.fillRect(cx - r * 0.45, cy - r * 0.45, r * 0.25, r * 0.25); c.fillRect(cx + r * 0.2, cy - r * 0.45, r * 0.25, r * 0.25); }
     if (it.shape === 'box') { c.fillRect(cx - r * 0.6, cy - r * 0.1, r * 1.2, r * 0.2); }
+    if (it.shape === 'log') { c.fillStyle = '#e8c08a'; c.beginPath(); c.ellipse(cx + r * 0.75, cy, r * 0.22, r * 0.4, 0, 0, Math.PI * 2); c.fill(); }
+    if (it.shape === 'board') { c.fillStyle = '#ffd27a'; for (let i = -1; i <= 1; i++) c.fillRect(cx - r * 0.6, cy + i * r * 0.4 - r * 0.05, r * 1.2, r * 0.1); }
+    if (it.shape === 'brick') { c.fillRect(cx - r * 0.05, cy - r * 0.5, r * 0.1, r); }
     c.restore();
   }
 
@@ -735,6 +821,7 @@
   function buildToolbar() {
     const bar = $('toolbar');
     bar.innerHTML = '';
+    TOOLS = ['hand', ...Object.keys(defs.BUILDINGS), 'delete'];
     TOOLS.forEach((t, i) => {
       const btn = document.createElement('button');
       btn.dataset.tool = t;
@@ -806,32 +893,128 @@
     $('info').textContent = text;
   }
 
+  // ---------- Techbaum ----------
+  const techState = (t) => {
+    if (research.done.includes(t.id)) return 'done';
+    if (!t.req.every((q) => research.done.includes(q))) return 'locked';
+    const ok = Object.entries(t.cost).every(([i, n]) => (research.stock[i] || 0) >= n);
+    return ok ? 'ready' : 'open';
+  };
+
+  function costChips(t) {
+    const wrap = document.createElement('div');
+    wrap.className = 'chips';
+    for (const [id, n] of Object.entries(t.cost)) {
+      const have = Math.min(n, research.stock[id] || 0);
+      const chip = document.createElement('div');
+      chip.className = 'chip' + (have >= n ? ' full' : '');
+      chip.title = defs.ITEMS[id].name;
+      chip.appendChild(iconCanvas((c) => drawItem(c, id, 36, 36, 64)));
+      const label = document.createElement('span');
+      label.textContent = `${have}/${n}`;
+      chip.appendChild(label);
+      const bar = document.createElement('i');
+      bar.style.width = `${(have / n) * 100}%`;
+      chip.appendChild(bar);
+      wrap.appendChild(chip);
+    }
+    return wrap;
+  }
+
+  function researchButton(t, state) {
+    const b = document.createElement('button');
+    b.className = 'research-btn';
+    b.textContent = state === 'ready' ? 'Erforschen' : 'Sammeln …';
+    b.disabled = state !== 'ready';
+    b.onclick = (e) => { e.stopPropagation(); send({ t: 'research', id: t.id }); };
+    return b;
+  }
+
+  let researchKey = '';
   function renderResearch() {
     if (!research || !defs) return;
-    const goal = defs.RESEARCH[research.level];
+    const key = JSON.stringify([research.done, research.stock]);
+    if (key === researchKey) return;
+    researchKey = key;
+    const done = research.done.length;
+    const total = defs.TECHS.length;
+    $('research-title').textContent = research.won ? 'Fabrik fertig 🎉' : `Techbaum ${done}/${total}`;
     const box = $('research-goals');
     box.innerHTML = '';
-    if (!goal) {
-      $('research-title').textContent = 'Alle Forschungen abgeschlossen 🎉';
-      $('research-text').textContent = 'Eure Fabrik läuft. Baut weiter, so groß ihr wollt!';
-      return;
-    }
-    $('research-title').textContent = `Forschung ${research.level + 1}/${defs.RESEARCH.length}: ${goal.name}`;
-    $('research-text').textContent = goal.text;
-    for (const [id, n] of Object.entries(goal.need)) {
-      const have = research.progress[id] || 0;
+    const open = defs.TECHS.filter((t) => ['ready', 'open'].includes(techState(t)));
+    open.sort((a, b) => (techState(a) === 'ready' ? -1 : 0) - (techState(b) === 'ready' ? -1 : 0));
+    for (const t of open.slice(0, 2)) {
       const row = document.createElement('div');
-      row.className = 'goal';
-      row.appendChild(iconCanvas((c) => drawItem(c, id, 36, 36, 64)));
-      const label = document.createElement('span');
-      label.textContent = `${defs.ITEMS[id].name} ${have}/${n}`;
-      const bar = document.createElement('div');
-      bar.className = 'bar';
-      bar.innerHTML = `<div style="width:${Math.min(100, (have / n) * 100)}%"></div>`;
-      row.append(label, bar);
+      row.className = 'tech-mini';
+      const head = document.createElement('div');
+      head.className = 'tech-mini-head';
+      const name = document.createElement('b');
+      name.textContent = t.name;
+      head.append(name, researchButton(t, techState(t)));
+      row.append(head, costChips(t));
       box.appendChild(row);
     }
+    $('research-text').textContent = open.length > 2 ? `+ ${open.length - 2} weitere im Techbaum` : (open.length ? '' : 'Alles erforscht. Baut weiter, so groß ihr wollt!');
+    renderTechTree();
   }
+
+  function renderTechTree() {
+    const overlay = $('techtree');
+    if (!defs || !research || overlay.classList.contains('hidden')) return;
+    const area = $('tree-area');
+    area.innerHTML = '';
+    const small = innerWidth < 700;
+    const CW = small ? 175 : 200, RH = small ? 140 : 150, NW = small ? 155 : 175;
+    const cols = Math.max(...defs.TECHS.map((t) => t.col)) + 1;
+    const rows = Math.max(...defs.TECHS.map((t) => t.row)) + 1;
+    area.style.width = `${cols * CW}px`;
+    area.style.height = `${rows * RH}px`;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', cols * CW);
+    svg.setAttribute('height', rows * RH);
+    const pos = (t) => [t.col * CW + 15, t.row * RH + 10];
+    for (const t of defs.TECHS) {
+      for (const q of t.req) {
+        const p = defs.TECHS.find((x) => x.id === q);
+        const [x1, y1] = pos(p);
+        const [x2, y2] = pos(t);
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const sx = x1 + NW, sy = y1 + 40, ex = x2, ey = y2 + 40;
+        path.setAttribute('d', `M${sx},${sy} C${sx + 30},${sy} ${ex - 30},${ey} ${ex},${ey}`);
+        path.setAttribute('class', research.done.includes(q) ? 'link on' : 'link');
+        svg.appendChild(path);
+      }
+    }
+    area.appendChild(svg);
+    for (const t of defs.TECHS) {
+      const st = techState(t);
+      const node = document.createElement('div');
+      node.className = `tech ${st}`;
+      const [x, y] = pos(t);
+      node.style.left = `${x}px`;
+      node.style.top = `${y}px`;
+      node.style.width = `${NW}px`;
+      const h = document.createElement('div');
+      h.className = 'tech-name';
+      h.textContent = (st === 'done' ? '✓ ' : st === 'locked' ? '🔒 ' : '') + t.name;
+      const d = document.createElement('div');
+      d.className = 'tech-text';
+      d.textContent = t.text;
+      node.append(h, d);
+      if (st !== 'done' && Object.keys(t.cost).length) node.appendChild(costChips(t));
+      if (st === 'ready' || st === 'open') node.appendChild(researchButton(t, st));
+      area.appendChild(node);
+    }
+  }
+
+  function openTechTree() {
+    $('techtree').classList.remove('hidden');
+    renderTechTree();
+  }
+  $('open-tree').onclick = openTechTree;
+  $('close-tree').onclick = () => $('techtree').classList.add('hidden');
+  $('techtree').addEventListener('click', (e) => { if (e.target.id === 'techtree') $('techtree').classList.add('hidden'); });
+
 
   function renderPlayers() {
     $('players').innerHTML = players.map((p) => `<div><span style="background:${p.color}"></span>${escapeHtml(p.name)}${p.id === me ? ' (du)' : ''}</div>`).join('');
@@ -978,6 +1161,8 @@
     keys.add(k);
     if (k === ' ') { spaceDown = true; e.preventDefault(); }
     if (k === 'r') rotate();
+    if (k === 't') { if ($('techtree').classList.contains('hidden')) openTechTree(); else $('techtree').classList.add('hidden'); }
+    if (k === 'escape') $('techtree').classList.add('hidden');
     if (k === 'h' || k === 'escape') setTool('hand');
     if (k === 'x' || k === 'delete') setTool('delete');
     if (defs) for (const [id, b] of Object.entries(defs.BUILDINGS)) if (b.key === k) setTool(id);

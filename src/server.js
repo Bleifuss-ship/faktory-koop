@@ -144,6 +144,12 @@ function startServer(opts = {}) {
           room.dirty = true;
           break;
         }
+        case 'research': {
+          const err = w.doResearch(String(msg.id));
+          if (err) send(ws, { t: 'error', text: err });
+          room.dirty = true;
+          break;
+        }
         case 'cursor':
           player.cursor = { x: +msg.x || 0, y: +msg.y || 0 };
           break;

@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from './vendor/RoundedBoxGeometry.js';
 
 const DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]];
-const ROOF = { bohrer: 0xf6a83b, schmelze: 0xf06a55, presse: 0x5b8ff0, montage: 0x3fc48a, zentrale: 0x9a7cf2 };
+const ROOF = { bohrer: 0xf6a83b, saege: 0xc98a4b, schmelze: 0xf06a55, verteiler: 0x8a94a8, presse: 0x5b8ff0, hochofen: 0xd94f6b, werkbank: 0x3fc48a, fabrikator: 0x22b8c8, zentrale: 0x9a7cf2 };
 const BELT_TOP = 0.11;
 
 function hash(x, y, k = 0) {
@@ -46,6 +46,7 @@ function create(canvas) {
     grey: mat(0xc7cbd6),
     dark: mat(0x596173),
     white: mat(0xffffff),
+    wood: mat(0xa0703c),
     flame: mat(0xffb030, { emissive: 0xff7a10, emissiveIntensity: 0.9 }),
     roof: Object.fromEntries(Object.entries(ROOF).map(([k, c]) => [k, mat(c)])),
     ghost: new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false }),
@@ -129,7 +130,7 @@ function create(canvas) {
         g.fillRect(x * S, y * S, S, S);
       }
     }
-    const soil = { r: '#c9c58a', b: '#a3c7b4', s: '#dcd895' };
+    const soil = { h: '#86b860', t: '#c4c8b8', e: '#c4ae9e', k: '#c8cf9a', c: '#9a9a8a', w: '#b4b0c8' };
     for (let y = 0; y < world.h; y++) {
       for (let x = 0; x < world.w; x++) {
         const t = world.tiles[y * world.w + x];
@@ -170,33 +171,67 @@ function create(canvas) {
     return tex;
   }
 
-  // Rohstoff-Deko als Instanzen: Steine, Kristalle, Sandhügel
+  // Rohstoff-Deko als Instanzen: Bäume, Steine, Erzbrocken, Kristalle.
+  // Unter Gebäuden wird die Deko ausgeblendet (Skalierung 0).
+  const depositSets = [];
   function buildDeposits(world) {
+    depositSets.length = 0;
+    const rock = new THREE.DodecahedronGeometry(0.11, 0);
     const kinds = {
-      r: { geo: new THREE.DodecahedronGeometry(0.11, 0), mat: mat(0xe8645a, { flatShading: true }), list: [] },
-      b: { geo: new THREE.OctahedronGeometry(0.1, 0).scale(0.8, 1.8, 0.8), mat: mat(0x4f9cf0, { flatShading: true }), list: [] },
-      s: { geo: new THREE.SphereGeometry(0.15, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.5, 1), mat: mat(0xf2d58a), list: [] },
+      h: { parts: [
+        { geo: new THREE.CylinderGeometry(0.05, 0.07, 0.3, 6).translate(0, 0.15, 0), mat: mat(0x8a5a32) },
+        { geo: new THREE.ConeGeometry(0.24, 0.5, 7).translate(0, 0.5, 0), mat: mat(0x4f9a4a, { flatShading: true }) },
+        { geo: new THREE.ConeGeometry(0.17, 0.36, 7).translate(0, 0.74, 0), mat: mat(0x63b45a, { flatShading: true }) },
+      ], per: 1, y: 0, scale: [0.8, 1.25] },
+      t: { parts: [{ geo: rock, mat: mat(0xa4aab4, { flatShading: true }) }], per: 3, y: 0.07, scale: [0.8, 1.6] },
+      e: { parts: [{ geo: rock, mat: mat(0x9a5a4e, { flatShading: true }) }], per: 3, y: 0.07, scale: [0.7, 1.4] },
+      k: { parts: [{ geo: rock, mat: mat(0xf0943c, { flatShading: true }) }, { geo: new THREE.OctahedronGeometry(0.05, 0).translate(0.04, 0.12, 0.02), mat: mat(0x5fd0b8, { flatShading: true }) }], per: 3, y: 0.07, scale: [0.7, 1.4] },
+      c: { parts: [{ geo: new THREE.DodecahedronGeometry(0.12, 0), mat: mat(0x34373f, { flatShading: true }) }], per: 3, y: 0.07, scale: [0.7, 1.4] },
+      w: { parts: [{ geo: new THREE.OctahedronGeometry(0.1, 0).scale(0.8, 1.8, 0.8), mat: mat(0x8a7fb0, { flatShading: true }) }], per: 2, y: 0.12, scale: [0.8, 1.5] },
     };
-    for (let y = 0; y < world.h; y++) {
-      for (let x = 0; x < world.w; x++) {
-        const k = kinds[world.tiles[y * world.w + x]];
-        if (!k) continue;
-        const n = 2 + Math.floor(hash(x, y, 6) * 2);
-        for (let i = 0; i < n; i++) k.list.push([x + 0.2 + hash(x, y, 10 + i) * 0.6, y + 0.2 + hash(x, y, 20 + i) * 0.6, 0.7 + hash(x, y, 30 + i) * 0.7, hash(x, y, 40 + i) * 6]);
+    for (const [t, k] of Object.entries(kinds)) {
+      const list = [];
+      for (let y = 0; y < world.h; y++) {
+        for (let x = 0; x < world.w; x++) {
+          if (world.tiles[y * world.w + x] !== t) continue;
+          const n = k.per === 1 ? 1 : k.per - 1 + Math.floor(hash(x, y, 6) * 2);
+          for (let i = 0; i < n; i++) {
+            const sc = k.scale[0] + hash(x, y, 30 + i) * (k.scale[1] - k.scale[0]);
+            const jitter = k.per === 1 ? 0.25 : 0.6;
+            list.push({ tx: x, ty: y, x: x + 0.5 + (hash(x, y, 10 + i) - 0.5) * jitter, z: y + 0.5 + (hash(x, y, 20 + i) - 0.5) * jitter, s: sc, r: hash(x, y, 40 + i) * 6 });
+          }
+        }
       }
+      const meshes = k.parts.map((part) => {
+        const inst = new THREE.InstancedMesh(part.geo, part.mat, Math.max(1, list.length));
+        inst.count = list.length;
+        inst.castShadow = true;
+        inst.receiveShadow = true;
+        worldGroup.add(inst);
+        return inst;
+      });
+      depositSets.push({ t, k, list, meshes });
     }
+    updateDeposits(world);
+  }
+
+  function updateDeposits(world) {
     const m4 = new THREE.Matrix4();
     const q = new THREE.Quaternion();
-    for (const [t, k] of Object.entries(kinds)) {
-      const inst = new THREE.InstancedMesh(k.geo, k.mat, k.list.length);
-      k.list.forEach(([x, z, s, r], i) => {
-        q.setFromEuler(new THREE.Euler(t === 'r' ? r : 0, r, t === 'b' ? (r - 3) * 0.08 : 0));
-        m4.compose(new THREE.Vector3(x, t === 'b' ? 0.1 * s : t === 'r' ? 0.07 * s : 0, z), q, new THREE.Vector3(s, s, s));
-        inst.setMatrixAt(i, m4);
+    const e = new THREE.Euler();
+    const pos = new THREE.Vector3();
+    const sc = new THREE.Vector3();
+    for (const { t, k, list, meshes } of depositSets) {
+      list.forEach((d, i) => {
+        const hidden = world.grid.has(d.tx + ',' + d.ty);
+        e.set(t === 'h' ? 0 : d.r, d.r, t === 'w' ? (d.r - 3) * 0.08 : 0);
+        q.setFromEuler(e);
+        pos.set(d.x, t === 'h' ? 0 : k.y * d.s, d.z);
+        sc.setScalar(hidden ? 0 : d.s);
+        m4.compose(pos, q, sc);
+        for (const inst of meshes) inst.setMatrixAt(i, m4);
       });
-      inst.castShadow = true;
-      inst.receiveShadow = true;
-      worldGroup.add(inst);
+      for (const inst of meshes) inst.instanceMatrix.needsUpdate = true;
     }
   }
 
@@ -277,7 +312,41 @@ function create(canvas) {
         const anvil = m(G.plate, M.creamDark); anvil.position.y = 0.47;
         g.add(plate, anvil);
         g.userData.plate = plate;
-      } else if (kind === 'montage') {
+      } else if (kind === 'saege') {
+        const blade = m(G.gear, M.white); blade.rotation.x = Math.PI / 2; blade.position.set(0, 0.6, 0.03); blade.scale.setScalar(1.1);
+        const log = m(new THREE.CylinderGeometry(0.07, 0.07, 0.5, 8).rotateZ(Math.PI / 2), M.wood);
+        log.position.set(0, 0.5, 0.18);
+        g.add(blade, log);
+        g.userData.saw = blade;
+      } else if (kind === 'verteiler') {
+        for (const a of [0, Math.PI / 2, -Math.PI / 2]) {
+          const arrow = m(G.arrow, M.white);
+          arrow.rotation.set(Math.PI / 2, 0, -Math.PI / 2);
+          arrow.position.set(0.16, 0.47, 0);
+          const pivot = new THREE.Group();
+          pivot.rotation.y = a;
+          pivot.add(arrow);
+          g.add(pivot);
+        }
+        const hubc = m(G.hubCyl, M.white); hubc.position.y = 0.47;
+        g.add(hubc);
+        // Ausgänge auch links und rechts andeuten
+        for (const z of [-0.42, 0.42]) { const tab = m(G.tab, M.grey); tab.rotation.y = Math.PI / 2; tab.position.set(0, 0.06, z); g.add(tab); }
+      } else if (kind === 'hochofen') {
+        const tower = m(new THREE.CylinderGeometry(0.16, 0.22, 0.42, 12), M.creamDark); tower.position.set(-0.08, 0.62, 0);
+        const ch = m(G.chimney, M.roof.hochofen); ch.position.set(0.2, 0.6, -0.2);
+        const fl = m(G.flame, ghost || M.flame); fl.position.set(-0.08, 0.88, 0);
+        g.add(tower, ch, fl);
+        g.userData.flame = fl;
+      } else if (kind === 'fabrikator') {
+        const base = m(G.hubCyl, M.white); base.position.set(-0.12, 0.47, -0.12); base.scale.set(1.5, 1, 1.5);
+        const arm = new THREE.Group(); arm.position.set(-0.12, 0.52, -0.12);
+        const a1 = m(new THREE.BoxGeometry(0.06, 0.3, 0.06).translate(0, 0.15, 0), M.white); a1.rotation.z = -0.5;
+        const a2 = m(new THREE.BoxGeometry(0.22, 0.05, 0.05).translate(0.11, 0, 0), M.white); a2.position.set(0.14, 0.25, 0);
+        arm.add(a1, a2);
+        g.add(base, arm);
+        g.userData.arm = arm;
+      } else if (kind === 'werkbank') {
         const gear = m(G.gear, M.white); gear.position.y = 0.45;
         const gear2 = m(G.gear, M.creamDark); gear2.position.set(-0.2, 0.47, -0.2); gear2.scale.setScalar(0.6);
         g.add(gear, gear2);
@@ -345,8 +414,17 @@ function create(canvas) {
     box: new RoundedBoxGeometry(0.24, 0.16, 0.2, 1, 0.04),
     bulb: new THREE.SphereGeometry(0.11, 12, 8),
     bot: new RoundedBoxGeometry(0.18, 0.24, 0.16, 1, 0.05),
+    log: new THREE.CylinderGeometry(0.07, 0.07, 0.28, 8).rotateZ(Math.PI / 2),
+    crystal: new THREE.OctahedronGeometry(0.1, 0).scale(0.8, 1.5, 0.8),
+    plank: new RoundedBoxGeometry(0.3, 0.05, 0.12, 1, 0.015),
+    brick: new RoundedBoxGeometry(0.24, 0.1, 0.12, 1, 0.02),
+    beam: new THREE.BoxGeometry(0.3, 0.08, 0.08),
+    board: new RoundedBoxGeometry(0.24, 0.03, 0.18, 1, 0.01),
+    frame: new THREE.TorusGeometry(0.1, 0.03, 4, 4).rotateX(Math.PI / 2).rotateY(Math.PI / 4),
+    drill: new THREE.ConeGeometry(0.09, 0.24, 8).rotateX(Math.PI),
+    arm: new THREE.BoxGeometry(0.06, 0.06, 0.26),
   };
-  const ITEM_LIFT = { rock: 0.1, dust: 0, bar: 0.05, pane: 0.02, gear: 0, coil: 0.09, box: 0.08, bulb: 0.11, bot: 0.12 };
+  const ITEM_LIFT = { rock: 0.1, dust: 0, bar: 0.05, pane: 0.02, gear: 0, coil: 0.09, box: 0.08, bulb: 0.11, bot: 0.12, log: 0.07, crystal: 0.15, plank: 0.03, brick: 0.05, beam: 0.04, board: 0.02, frame: 0.03, drill: 0.12, arm: 0.03 };
   const itemPools = new Map();
   function itemPool(id, defs) {
     if (itemPools.has(id)) return itemPools.get(id);
@@ -395,6 +473,7 @@ function create(canvas) {
   function syncBuildings(world) {
     if (world.version === builtVersion) return;
     builtVersion = world.version;
+    updateDeposits(world);
     // Maschinen und Zentrale als eigene Objekte
     for (const [id, g] of groups) {
       const b = world.buildings.get(id);
@@ -569,6 +648,8 @@ function create(canvas) {
       if (u.flame) { const f = busyItem ? 1 + Math.sin(t * 16 + id) * 0.18 : 0.35; u.flame.scale.set(f, f, f); }
       if (u.plate) u.plate.position.y = busyItem ? 0.6 + Math.abs(Math.sin(t * 6 + id)) * 0.12 : 0.72;
       if (u.gear && busyItem) { u.gear.rotation.y += dtSec * 2; u.gear2.rotation.y -= dtSec * 3.3; }
+      if (u.saw && busyItem) u.saw.rotation.z += dtSec * 12;
+      if (u.arm) u.arm.rotation.y = busyItem ? Math.sin(t * 2.5 + id) * 1.2 : 0;
     }
 
     // Gegenstände auf Bändern und schwebende Produkte über Maschinen

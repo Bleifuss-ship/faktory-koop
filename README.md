@@ -3,6 +3,7 @@
 Ein kooperatives Fabrikbau-Spiel im Browser. Mehrere Leute bauen gemeinsam in derselben Welt: Rohstoffe abbauen, über Förderbänder transportieren, in Maschinen verarbeiten und zur Zentrale liefern, um neue Technik zu erforschen. Läuft auf PC und Handy, ohne Installation.
 
 <p align="center"><img src="docs/screenshot-pc.png" width="720" alt="Fabrik-Koop am PC"> <img src="docs/screenshot-handy.png" width="200" alt="Fabrik-Koop am Handy"></p>
+<p align="center"><img src="docs/screenshot-techbaum.png" width="720" alt="Techbaum"></p>
 
 ## Apps herunterladen
 
@@ -45,27 +46,40 @@ Optionale Umgebungsvariablen: `PORT` (Standard 3000), `SAVE_DIR` (Standard `./sa
 3. Rohstoffe durch **Maschinen** schicken und die Produkte zur **Zentrale** in der Mitte bringen.
 4. Die Forschungsziele oben links erfüllen, um neue Gebäude und Verbesserungen freizuschalten.
 
+### Rohstoffe
+
+Holz (Wald), Stein, Eisenerz, Kupfererz, Kohle und Wolframerz. Kohle und Wolfram liegen weiter weg von der Zentrale, Wolfram ist selten.
+
 ### Produktionsketten
 
 | Maschine | Rezepte |
 |---|---|
-| Schmelze | Rubinerz → Rubinbarren · Azurit → Azurbarren · Quarzsand → Glasscheibe |
-| Presse | Rubinbarren → Zahnrad · Azurbarren → Kupferspule |
-| Montage | Zahnrad + Kupferspule → Motor · Glasscheibe + Kupferspule → Lampe · Motor + Lampe → Helferbot |
+| Sägewerk | Holz → Bretter |
+| Schmelzofen | Eisenerz → Eisenbarren · Kupfererz → Kupferbarren · Stein → Ziegel |
+| Presse | Eisenbarren → Zahnrad · Kupferbarren → Kupferdraht |
+| Hochofen | Eisenbarren + Kohle → Stahlträger · Wolframerz + Kohle → Wolframbarren |
+| Werkbank | Zahnrad + Kupferdraht → Motor · Kupferdraht + Bretter → Platine · Stahlträger + Ziegel → Stahlrahmen · Wolframbarren + Stahlträger → Bohrkopf |
+| Fabrikator | Motor + Platine → Roboterarm · Roboterarm + Bohrkopf → Helferbot |
 
-### Forschung
+Der **Verteiler** schickt Gegenstände abwechselnd nach vorne, rechts und links.
 
-1. Erste Barren: 20 Rubinbarren → Presse
-2. Mechanik: 20 Zahnräder, 20 Azurbarren → Montage
-3. Antrieb: 15 Motoren, 30 Glasscheiben → Bohrer 50 % schneller
-4. Beleuchtung: 15 Lampen, 40 Kupferspulen → Bänder 50 % schneller
-5. Automatisierung: 10 Helferbots → gewonnen
+### Techbaum
+
+Alles, was an der Zentrale ankommt, landet im Lager. Im Techbaum (Taste T oder Knopf „Techbaum öffnen") gebt ihr es für neue Technik aus. Jede Technik braucht ihre Vorgänger:
+
+- Grundlagen → **Logistik** (Verteiler) → **Schnelle Bänder** → **Turbobänder**
+- Grundlagen → **Metallbau** (Presse) → **Hochofen** und **Werkbank**
+- Werkbank → **Scharfe Bohrer** → **Wolframbohrer** (braucht auch Hochofen)
+- Hochofen + Werkbank → **Fabrikator** → **Taktstraße** (alle Maschinen schneller)
+- Fabrikator + Wolframbohrer → **Helferbot-Programm**: 10 Helferbots, dann ist die Fabrik fertig
+
+Alte Spielstände werden beim Laden umgewandelt: Die Vorkommen werden zu Eisen, Kupfer und Stein, und der Techbaum fängt von vorne an.
 
 ### Steuerung
 
 | | PC | Handy |
 |---|---|---|
-| Bauen | Gebäude wählen (oder Taste 1–5), klicken/ziehen | Gebäude wählen, tippen/ziehen |
+| Bauen | Gebäude wählen (oder Taste 1–9), klicken/ziehen | Gebäude wählen, tippen/ziehen |
 | Drehen | R | ⟳ |
 | Abreißen | Rechtsklick oder X | 🗑 wählen, tippen |
 | Kamera | WASD, Leertaste/mittlere Maustaste + ziehen, Mausrad zoomt, Q/E oder 🧭 dreht | ✋ + ziehen, zwei Finger zoomen und drehen, 🧭 dreht |
