@@ -236,28 +236,134 @@ function create(canvas) {
   }
 
   // --- Gebäude ---
-  function addCommon(g, kind, ghost) {
-    const body = new THREE.Mesh(G.body, ghost || M.cream);
-    body.position.y = 0.18;
-    const roof = new THREE.Mesh(G.roof, ghost || M.roof[kind]);
-    roof.position.y = 0.38;
+  // Kleine Canvas-Texturen für Ziegel, Holz und Warnstreifen
+  function canvasTex(w, h, draw, rx = 1, ry = 1) {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    draw(c.getContext('2d'), w, h);
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(rx, ry);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
+  const brickTex = (base, mortar, rx, ry) => canvasTex(128, 128, (x, w, h) => {
+    x.fillStyle = mortar; x.fillRect(0, 0, w, h);
+    const bh = 16, bw = 32;
+    for (let row = 0; row < h / bh; row++) {
+      const off = row % 2 ? bw / 2 : 0;
+      for (let col = -1; col < w / bw + 1; col++) {
+        const shade = (Math.sin(row * 7.1 + col * 3.7) + 1) * 8;
+        x.fillStyle = base.replace('L', 40 + shade);
+        x.fillRect(col * bw + off + 2, row * bh + 2, bw - 4, bh - 4);
+      }
+    }
+  }, rx, ry);
+  const woodTex = canvasTex(64, 64, (x, w, h) => {
+    x.fillStyle = '#c99a5c'; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 4; i++) {
+      x.fillStyle = i % 2 ? '#d6a868' : '#c08e52';
+      x.fillRect(0, i * 16 + 1, w, 14);
+      x.strokeStyle = 'rgba(110,70,30,0.35)'; x.lineWidth = 1;
+      x.beginPath(); x.moveTo(0, i * 16 + 8 + Math.sin(i) * 3); x.bezierCurveTo(20, i * 16 + 4, 40, i * 16 + 12, 64, i * 16 + 7); x.stroke();
+    }
+  });
+  const stripeTex = canvasTex(64, 16, (x, w, h) => {
+    x.fillStyle = '#ffd23f'; x.fillRect(0, 0, w, h);
+    x.fillStyle = '#2b2f3a';
+    for (let i = -1; i < 5; i++) { x.beginPath(); x.moveTo(i * 16, h); x.lineTo(i * 16 + 8, h); x.lineTo(i * 16 + 16, 0); x.lineTo(i * 16 + 8, 0); x.closePath(); x.fill(); }
+  }, 2, 1);
+
+  const BM = {
+    plinth: mat(0xe9e4d8),
+    brickRed: mat(0xffffff, { map: brickTex('hsl(10, 55%, L%)', '#d8cfc0', 2, 1) }),
+    brickDark: mat(0xffffff, { map: brickTex('hsl(8, 45%, L%)', '#a89c8c', 3, 2) }),
+    stone: mat(0xffffff, { map: brickTex('hsl(30, 8%, L%)', '#cfc8bc', 2, 1) }),
+    wood: mat(0xffffff, { map: woodTex }),
+    bark: mat(0x7a5230),
+    logEnd: mat(0xe8c48a),
+    metal: mat(0xb8bfcc),
+    darkMetal: mat(0x4a5060),
+    steel: new THREE.MeshPhongMaterial({ color: 0xdfe4ec, shininess: 80, specular: 0x888888 }),
+    stripes: mat(0xffffff, { map: stripeTex }),
+    ember: new THREE.MeshBasicMaterial({ color: 0xffa040 }),
+    glass: new THREE.MeshPhongMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0.35, shininess: 100, depthWrite: false }),
+    lampGreen: new THREE.MeshBasicMaterial({ color: 0x5cff8a }),
+    coal: mat(0x2c2e35, { flatShading: true }),
+  };
+  const BG = {
+    plinth: new RoundedBoxGeometry(0.92, 0.08, 0.92, 2, 0.04).translate(0, 0.04, 0),
+    box: new THREE.BoxGeometry(1, 1, 1),
+    cyl: new THREE.CylinderGeometry(0.5, 0.5, 1, 16),
+    cyl8: new THREE.CylinderGeometry(0.5, 0.5, 1, 8),
+    sphere: new THREE.SphereGeometry(0.5, 16, 10),
+    dome: new THREE.SphereGeometry(0.5, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+    cone: new THREE.ConeGeometry(0.5, 1, 16),
+    ring4: new THREE.TorusGeometry(0.5, 0.025, 4, 4),
+    band: new THREE.TorusGeometry(0.5, 0.04, 6, 24),
+    sawBlade: (() => {
+      const s = new THREE.Shape();
+      const teeth = 24;
+      for (let i = 0; i < teeth; i++) {
+        const a0 = (i / teeth) * Math.PI * 2;
+        const a1 = ((i + 0.6) / teeth) * Math.PI * 2;
+        const p0 = [Math.cos(a0) * 0.22, Math.sin(a0) * 0.22];
+        if (i === 0) s.moveTo(...p0); else s.lineTo(...p0);
+        s.lineTo(Math.cos(a1) * 0.27, Math.sin(a1) * 0.27);
+      }
+      s.closePath();
+      const hole = new THREE.Path(); hole.absarc(0, 0, 0.04, 0, Math.PI * 2, true); s.holes.push(hole);
+      return new THREE.ExtrudeGeometry(s, { depth: 0.02, bevelEnabled: false }).translate(0, 0, -0.01);
+    })(),
+  };
+
+  // Hilfsfunktion: Teil mit Größe/Position/Drehung anlegen
+  function part(g, geo, material, [sx, sy, sz], [px, py, pz], rot) {
+    const mesh = new THREE.Mesh(geo, material);
+    mesh.scale.set(sx, sy, sz);
+    mesh.position.set(px, py, pz);
+    if (rot) mesh.rotation.set(rot[0] || 0, rot[1] || 0, rot[2] || 0);
+    g.add(mesh);
+    return mesh;
+  }
+  // Schräge Strebe von a nach b
+  function strut(g, material, a, b, thick) {
+    const va = new THREE.Vector3(...a);
+    const vb = new THREE.Vector3(...b);
+    const len = va.distanceTo(vb);
+    const mesh = new THREE.Mesh(BG.box, material);
+    mesh.scale.set(thick, len, thick);
+    mesh.position.copy(va).add(vb).multiplyScalar(0.5);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), vb.clone().sub(va).normalize());
+    g.add(mesh);
+    return mesh;
+  }
+  function addOutput(g, ghost, z = 0, ang = 0) {
+    const pivot = new THREE.Group();
+    pivot.rotation.y = ang;
     const tab = new THREE.Mesh(G.tab, ghost || M.grey);
-    tab.position.set(0.42, 0.06, 0);
+    tab.position.set(0.43, 0.06, z);
     const arrow = new THREE.Mesh(G.arrow, ghost || M.dark);
     arrow.rotation.set(Math.PI / 2, 0, -Math.PI / 2);
-    arrow.position.set(0.46, 0.13, 0);
-    g.add(body, roof, tab, arrow);
+    arrow.position.set(0.47, 0.13, z);
+    pivot.add(tab, arrow);
+    g.add(pivot);
   }
 
   function makeBuilding(kind, ghost) {
     const g = new THREE.Group();
     g.userData.kind = kind;
+    // Im Vorschau-Modus bekommen alle Teile dasselbe halbdurchsichtige Material
+    const X = ghost ? new Proxy({}, { get: () => ghost }) : BM;
+    const R = ghost ? new Proxy({}, { get: () => ghost }) : M.roof;
     const m = (geo, material) => new THREE.Mesh(geo, ghost || material);
     if (kind === 'band') {
       const f = m(G.beltFrame, M.grey); f.position.y = 0.05;
       const t = m(G.beltTop, beltMat); t.position.y = BELT_TOP;
       g.add(f, t);
-    } else if (kind === 'zentrale') {
+      return g;
+    }
+    if (kind === 'zentrale') {
       const base = m(new RoundedBoxGeometry(2.7, 0.5, 2.7, 3, 0.25), M.cream);
       base.position.y = 0.25;
       const roof = m(new RoundedBoxGeometry(2.4, 0.16, 2.4, 2, 0.1), M.roof.zentrale);
@@ -285,77 +391,189 @@ function create(canvas) {
       wrap.add(g);
       wrap.userData = g.userData;
       return wrap;
-    } else {
-      addCommon(g, kind, ghost);
-      if (kind === 'bohrer') {
-        const rotor = new THREE.Group();
-        rotor.position.y = 0.5;
-        for (let i = 0; i < 3; i++) {
-          const b = m(G.blade, M.white);
-          b.position.x = 0.13;
-          const arm = new THREE.Group();
-          arm.rotation.y = (i * Math.PI * 2) / 3;
-          arm.add(b);
-          rotor.add(arm);
-        }
-        rotor.add(m(G.hubCyl, M.roof.bohrer));
-        g.add(rotor);
-        g.userData.rotor = rotor;
-      } else if (kind === 'schmelze') {
-        const ch = m(G.chimney, M.creamDark); ch.position.set(-0.2, 0.58, -0.2);
-        const fl = m(G.flame, ghost || M.flame); fl.position.set(0.05, 0.56, 0.05);
-        g.add(ch, fl);
-        g.userData.flame = fl;
-      } else if (kind === 'presse') {
-        for (const z of [-0.17, 0.17]) { const p = m(G.pillar, M.white); p.position.set(0, 0.6, z); g.add(p); }
-        const plate = m(G.plate, M.white); plate.position.y = 0.72;
-        const anvil = m(G.plate, M.creamDark); anvil.position.y = 0.47;
-        g.add(plate, anvil);
-        g.userData.plate = plate;
-      } else if (kind === 'saege') {
-        const blade = m(G.gear, M.white); blade.rotation.x = Math.PI / 2; blade.position.set(0, 0.6, 0.03); blade.scale.setScalar(1.1);
-        const log = m(new THREE.CylinderGeometry(0.07, 0.07, 0.5, 8).rotateZ(Math.PI / 2), M.wood);
-        log.position.set(0, 0.5, 0.18);
-        g.add(blade, log);
-        g.userData.saw = blade;
-      } else if (kind === 'verteiler') {
-        for (const a of [0, Math.PI / 2, -Math.PI / 2]) {
-          const arrow = m(G.arrow, M.white);
-          arrow.rotation.set(Math.PI / 2, 0, -Math.PI / 2);
-          arrow.position.set(0.16, 0.47, 0);
-          const pivot = new THREE.Group();
-          pivot.rotation.y = a;
-          pivot.add(arrow);
-          g.add(pivot);
-        }
-        const hubc = m(G.hubCyl, M.white); hubc.position.y = 0.47;
-        g.add(hubc);
-        // Ausgänge auch links und rechts andeuten
-        for (const z of [-0.42, 0.42]) { const tab = m(G.tab, M.grey); tab.rotation.y = Math.PI / 2; tab.position.set(0, 0.06, z); g.add(tab); }
-      } else if (kind === 'hochofen') {
-        const tower = m(new THREE.CylinderGeometry(0.16, 0.22, 0.42, 12), M.creamDark); tower.position.set(-0.08, 0.62, 0);
-        const ch = m(G.chimney, M.roof.hochofen); ch.position.set(0.2, 0.6, -0.2);
-        const fl = m(G.flame, ghost || M.flame); fl.position.set(-0.08, 0.88, 0);
-        g.add(tower, ch, fl);
-        g.userData.flame = fl;
-      } else if (kind === 'fabrikator') {
-        const base = m(G.hubCyl, M.white); base.position.set(-0.12, 0.47, -0.12); base.scale.set(1.5, 1, 1.5);
-        const arm = new THREE.Group(); arm.position.set(-0.12, 0.52, -0.12);
-        const a1 = m(new THREE.BoxGeometry(0.06, 0.3, 0.06).translate(0, 0.15, 0), M.white); a1.rotation.z = -0.5;
-        const a2 = m(new THREE.BoxGeometry(0.22, 0.05, 0.05).translate(0.11, 0, 0), M.white); a2.position.set(0.14, 0.25, 0);
-        arm.add(a1, a2);
-        g.add(base, arm);
-        g.userData.arm = arm;
-      } else if (kind === 'werkbank') {
-        const gear = m(G.gear, M.white); gear.position.y = 0.45;
-        const gear2 = m(G.gear, M.creamDark); gear2.position.set(-0.2, 0.47, -0.2); gear2.scale.setScalar(0.6);
-        g.add(gear, gear2);
-        g.userData.gear = gear;
-        g.userData.gear2 = gear2;
+    }
+
+    part(g, BG.plinth, X.plinth, [1, 1, 1], [0, 0, 0]);
+    addOutput(g, ghost);
+
+    if (kind === 'bohrer') {
+      // Bohrturm: vier schräge Stützen, Querringe, Bohrstange mit Spitze, Motor
+      const orange = R.bohrer;
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) strut(g, orange, [sx * 0.33, 0.08, sz * 0.33], [sx * 0.09, 1.02, sz * 0.09], 0.05);
+      part(g, BG.ring4, orange, [0.62, 0.62, 0.62], [0, 0.38, 0], [Math.PI / 2, 0, Math.PI / 4]);
+      part(g, BG.ring4, orange, [0.38, 0.38, 0.38], [0, 0.72, 0], [Math.PI / 2, 0, Math.PI / 4]);
+      part(g, BG.box, X.darkMetal, [0.26, 0.08, 0.26], [0, 1.06, 0]);
+      part(g, BG.box, X.stripes, [0.27, 0.04, 0.27], [0, 1.0, 0]);
+      const shaft = new THREE.Group();
+      part(shaft, BG.cyl8, X.steel, [0.07, 0.95, 0.07], [0, 0.55, 0]);
+      for (const y of [0.3, 0.55, 0.8]) part(shaft, BG.cyl8, X.darkMetal, [0.11, 0.03, 0.11], [0, y, 0]);
+      part(shaft, BG.cone, X.steel, [0.12, 0.16, 0.12], [0, 0.07, 0], [Math.PI, 0, 0]);
+      g.add(shaft);
+      g.userData.drill = shaft;
+      part(g, BG.box, X.darkMetal, [0.2, 0.18, 0.18], [-0.28, 0.17, 0.26]);
+      part(g, BG.box, orange, [0.21, 0.05, 0.19], [-0.28, 0.22, 0.26]);
+    } else if (kind === 'saege') {
+      // Sägewerk: Holztisch, großes Sägeblatt, Baumstamm, Sägemehl
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) part(g, BG.box, X.wood, [0.06, 0.3, 0.06], [sx * 0.34, 0.23, sz * 0.2]);
+      part(g, BG.box, X.wood, [0.82, 0.07, 0.5], [0, 0.4, 0]);
+      part(g, BG.box, X.darkMetal, [0.2, 0.2, 0.16], [0.05, 0.2, 0]);
+      const blade = new THREE.Mesh(BG.sawBlade, X.steel);
+      blade.position.set(0.08, 0.42, 0);
+      g.add(blade);
+      part(g, BG.cyl, R.saege, [0.07, 0.04, 0.07], [0.08, 0.42, 0.02], [Math.PI / 2, 0, 0]);
+      g.userData.saw = blade;
+      const log = new THREE.Group();
+      part(log, BG.cyl8, X.bark, [0.17, 0.42, 0.17], [0, 0, 0], [0, 0, Math.PI / 2]);
+      part(log, BG.cyl8, X.logEnd, [0.15, 0.01, 0.15], [-0.215, 0, 0], [0, 0, Math.PI / 2]);
+      log.position.set(-0.22, 0.52, 0);
+      g.add(log);
+      g.userData.log = log;
+      part(g, BG.dome, ghost || mat(0xe6c48c), [0.22, 0.1, 0.18], [0.3, 0.08, 0.3]);
+      part(g, BG.box, R.saege, [0.84, 0.03, 0.06], [0, 0.45, -0.25]);
+    } else if (kind === 'schmelze') {
+      // Schmelzofen: Steinsockel mit Kuppel, glühende Öffnung, Schornstein
+      part(g, BG.box, X.stone, [0.74, 0.26, 0.74], [0, 0.21, 0]);
+      part(g, BG.dome, X.brickRed, [0.7, 0.62, 0.7], [0, 0.34, 0]);
+      part(g, BG.box, X.darkMetal, [0.08, 0.22, 0.28], [0.34, 0.32, 0]);
+      const ember = part(g, BG.cyl, X.ember, [0.2, 0.02, 0.2], [0.385, 0.33, 0], [0, 0, Math.PI / 2]);
+      g.userData.ember = ember;
+      part(g, BG.cyl, X.brickRed, [0.14, 0.42, 0.14], [-0.2, 0.75, -0.2]);
+      part(g, BG.cyl, X.darkMetal, [0.17, 0.05, 0.17], [-0.2, 0.97, -0.2]);
+      g.userData.smoke = new THREE.Vector3(-0.2, 1.02, -0.2);
+    } else if (kind === 'hochofen') {
+      // Hochofen: hoher Ziegelturm mit Eisenringen, Haube, hoher Schornstein, Kohlebunker
+      part(g, new THREE.CylinderGeometry(0.22, 0.29, 0.85, 18), X.brickDark, [1, 1, 1], [0, 0.505, 0]);
+      for (const [y, r] of [[0.25, 0.29], [0.55, 0.265], [0.85, 0.235]]) part(g, BG.band, X.darkMetal, [r * 2, r * 2, r * 2], [0, y, 0], [Math.PI / 2, 0, 0]);
+      part(g, BG.cone, X.darkMetal, [0.5, 0.18, 0.5], [0, 1.02, 0]);
+      part(g, BG.cyl, X.metal, [0.09, 0.4, 0.09], [0, 1.25, 0]);
+      part(g, BG.cyl, X.darkMetal, [0.12, 0.04, 0.12], [0, 1.45, 0]);
+      part(g, BG.box, X.darkMetal, [0.1, 0.16, 0.18], [0.26, 0.2, 0]);
+      const ember = part(g, BG.box, X.ember, [0.02, 0.1, 0.12], [0.315, 0.2, 0]);
+      const lava = part(g, BG.box, X.ember, [0.12, 0.02, 0.06], [0.37, 0.1, 0]);
+      g.userData.ember = ember;
+      g.userData.ember2 = lava;
+      part(g, BG.box, X.darkMetal, [0.22, 0.2, 0.22], [-0.27, 0.18, 0.27]);
+      for (let i = 0; i < 4; i++) part(g, new THREE.DodecahedronGeometry(0.05, 0), X.coal, [1, 1, 1], [-0.31 + (i % 2) * 0.08, 0.3, 0.23 + Math.floor(i / 2) * 0.08]);
+      g.userData.smoke = new THREE.Vector3(0, 1.5, 0);
+    } else if (kind === 'presse') {
+      // Hydraulikpresse: Amboss, zwei Säulen, Querbalken, Kolben mit Stempel
+      part(g, BG.box, X.darkMetal, [0.6, 0.18, 0.5], [0, 0.17, 0]);
+      part(g, BG.box, X.stripes, [0.61, 0.05, 0.02], [0, 0.17, 0.26]);
+      part(g, BG.box, X.steel, [0.3, 0.05, 0.3], [0, 0.285, 0]);
+      for (const z of [-0.24, 0.24]) part(g, BG.box, R.presse, [0.12, 0.8, 0.1], [0, 0.48, z]);
+      part(g, BG.box, R.presse, [0.3, 0.14, 0.62], [0, 0.92, 0]);
+      part(g, BG.cyl, X.metal, [0.16, 0.2, 0.16], [0, 0.78, 0]);
+      const ram = new THREE.Group();
+      part(ram, BG.cyl, X.steel, [0.08, 0.3, 0.08], [0, 0.15, 0]);
+      part(ram, BG.box, X.darkMetal, [0.32, 0.06, 0.32], [0, 0, 0]);
+      ram.position.y = 0.5;
+      g.add(ram);
+      g.userData.ram = ram;
+    } else if (kind === 'werkbank') {
+      // Werkbank: Holztisch mit Ablage, Schraubstock, Hammer, Zahnrad, grüne Werkzeugkiste
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) part(g, BG.box, X.wood, [0.06, 0.36, 0.06], [sx * 0.36, 0.26, sz * 0.24]);
+      part(g, BG.box, X.wood, [0.84, 0.07, 0.6], [0, 0.46, 0]);
+      part(g, BG.box, X.wood, [0.76, 0.04, 0.5], [0, 0.18, 0]);
+      part(g, BG.box, R.werkbank, [0.3, 0.16, 0.2], [-0.15, 0.28, 0]);
+      part(g, BG.box, X.darkMetal, [0.12, 0.03, 0.03], [-0.15, 0.38, 0]);
+      part(g, BG.box, X.darkMetal, [0.14, 0.12, 0.12], [-0.28, 0.55, -0.18]);
+      part(g, BG.box, X.metal, [0.03, 0.03, 0.2], [-0.28, 0.6, -0.08]);
+      const gear = new THREE.Mesh(G.gear, X.metal);
+      gear.position.set(0.18, 0.5, 0.12);
+      gear.scale.setScalar(0.7);
+      g.add(gear);
+      g.userData.gear = gear;
+      const hammer = new THREE.Group();
+      part(hammer, BG.cyl8, X.wood, [0.035, 0.32, 0.035], [0, 0.16, 0]);
+      part(hammer, BG.box, X.darkMetal, [0.14, 0.07, 0.07], [0, 0.32, 0]);
+      hammer.position.set(0.05, 0.5, -0.16);
+      hammer.rotation.z = -1.3;
+      g.add(hammer);
+      g.userData.hammer = hammer;
+    } else if (kind === 'fabrikator') {
+      // Fabrikator: türkises Gehäuse, Glaskuppel, Roboterarm, Statuslampen
+      part(g, new RoundedBoxGeometry(0.8, 0.36, 0.8, 2, 0.08), R.fabrikator, [1, 1, 1], [0, 0.26, 0]);
+      part(g, BG.box, X.plinth, [0.62, 0.03, 0.62], [0, 0.45, 0]);
+      part(g, BG.cyl, X.metal, [0.36, 0.03, 0.36], [0.1, 0.47, 0.1]);
+      part(g, BG.dome, ghost || BM.glass, [0.4, 0.36, 0.4], [0.1, 0.48, 0.1]);
+      for (let i = 0; i < 3; i++) part(g, BG.sphere, i === 0 ? X.lampGreen : X.darkMetal, [0.045, 0.045, 0.045], [0.41, 0.33, -0.16 + i * 0.08]);
+      const arm = new THREE.Group();
+      arm.position.set(-0.22, 0.47, -0.22);
+      part(arm, BG.cyl, X.darkMetal, [0.14, 0.06, 0.14], [0, 0.03, 0]);
+      const upper = new THREE.Group();
+      upper.position.y = 0.06;
+      upper.rotation.z = -0.35;
+      part(upper, BG.box, X.plinth, [0.06, 0.32, 0.06], [0, 0.16, 0]);
+      const fore = new THREE.Group();
+      fore.position.y = 0.32;
+      fore.rotation.z = -1.5;
+      part(fore, BG.sphere, X.darkMetal, [0.08, 0.08, 0.08], [0, 0, 0]);
+      part(fore, BG.box, X.plinth, [0.05, 0.24, 0.05], [0, 0.12, 0]);
+      part(fore, BG.box, X.darkMetal, [0.1, 0.03, 0.06], [0, 0.25, 0]);
+      upper.add(fore);
+      arm.add(upper);
+      g.add(arm);
+      g.userData.arm = arm;
+      g.userData.fore = fore;
+    } else if (kind === 'verteiler') {
+      // Verteiler: flacher Metallkasten mit Drehscheibe und drei Pfeilen
+      part(g, new RoundedBoxGeometry(0.72, 0.18, 0.72, 2, 0.05), X.metal, [1, 1, 1], [0, 0.17, 0]);
+      const disc = part(g, BG.cyl, R.verteiler, [0.44, 0.04, 0.44], [0, 0.28, 0]);
+      part(g, BG.cyl, X.plinth, [0.14, 0.06, 0.14], [0, 0.3, 0]);
+      for (const a of [0, Math.PI / 2, -Math.PI / 2]) {
+        const piv = new THREE.Group();
+        piv.rotation.y = a;
+        const arrow = new THREE.Mesh(G.arrow, ghost || M.white);
+        arrow.rotation.set(Math.PI / 2, 0, -Math.PI / 2);
+        arrow.position.set(0.2, 0.31, 0);
+        piv.add(arrow);
+        g.add(piv);
       }
+      g.userData.disc = disc;
+      addOutput(g, ghost, 0, Math.PI / 2);
+      addOutput(g, ghost, 0, -Math.PI / 2);
     }
     g.traverse((o) => { if (o.isMesh && !ghost) { o.castShadow = o.receiveShadow = true; } });
     return g;
+  }
+
+  // Rauchwölkchen über arbeitenden Öfen (Instanzen)
+  const SMOKE_MAX = 600;
+  const smoke = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.1, 1), mat(0xf2f2f2), SMOKE_MAX);
+  smoke.count = 0;
+  smoke.frustumCulled = false;
+  scene.add(smoke);
+
+  // Bilder der Modelle für die Werkzeugleiste
+  const iconCache = new Map();
+  function icon(kind) {
+    if (iconCache.has(kind)) return iconCache.get(kind);
+    try {
+      if (!icon.r) {
+        icon.r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+        icon.r.setSize(128, 128, false);
+        icon.r.outputColorSpace = THREE.SRGBColorSpace;
+        icon.scene = new THREE.Scene();
+        icon.scene.add(new THREE.HemisphereLight(0xffffff, 0xb0b8c8, 1.8));
+        const d = new THREE.DirectionalLight(0xffffff, 2.2);
+        d.position.set(-2, 4, 3);
+        icon.scene.add(d);
+        icon.cam = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
+      }
+      const model = makeBuilding(kind);
+      if (kind === 'band') model.scale.setScalar(1.1);
+      icon.scene.add(model);
+      const tall = kind === 'bohrer' || kind === 'hochofen' ? 0.15 : 0;
+      icon.cam.position.set(1.55, 1.75 + tall, 2.1);
+      icon.cam.lookAt(0, 0.32 + tall, 0);
+      icon.r.render(icon.scene, icon.cam);
+      const url = icon.r.domElement.toDataURL('image/png');
+      icon.scene.remove(model);
+      iconCache.set(kind, url);
+      return url;
+    } catch (err) {
+      return null;
+    }
   }
 
   function labelTexture(text, bg, fg) {
@@ -644,13 +862,41 @@ function create(canvas) {
       const busyItem = s.busy.get(id);
       const u = g.userData;
       if (u.ring) { u.ring.rotation.z = t * 0.6; u.gem.rotation.y = t; u.gem.position.y = 1.75 + Math.sin(t * 2) * 0.08; }
-      if (u.rotor && busyItem) u.rotor.rotation.y += dtSec * 8;
-      if (u.flame) { const f = busyItem ? 1 + Math.sin(t * 16 + id) * 0.18 : 0.35; u.flame.scale.set(f, f, f); }
-      if (u.plate) u.plate.position.y = busyItem ? 0.6 + Math.abs(Math.sin(t * 6 + id)) * 0.12 : 0.72;
-      if (u.gear && busyItem) { u.gear.rotation.y += dtSec * 2; u.gear2.rotation.y -= dtSec * 3.3; }
-      if (u.saw && busyItem) u.saw.rotation.z += dtSec * 12;
-      if (u.arm) u.arm.rotation.y = busyItem ? Math.sin(t * 2.5 + id) * 1.2 : 0;
+      if (u.drill) { if (busyItem) u.drill.rotation.y += dtSec * 10; u.drill.position.y = busyItem ? Math.sin(t * 5 + id) * 0.03 - 0.02 : 0; }
+      if (u.saw && busyItem) u.saw.rotation.z -= dtSec * 14;
+      if (u.log) u.log.position.x = busyItem ? -0.22 + ((t * 0.3 + id * 0.1) % 1) * 0.12 : -0.22;
+      if (u.ember) {
+        // Glut leuchtet nur, wenn der Ofen arbeitet
+        u.ember.material = busyItem ? BM.ember : BM.darkMetal;
+        if (u.ember2) u.ember2.visible = !!busyItem;
+      }
+      if (u.ram) u.ram.position.y = busyItem ? 0.34 + Math.abs(Math.cos(t * 5 + id)) * 0.22 : 0.5;
+      if (u.hammer) u.hammer.rotation.z = busyItem ? -1.3 + Math.max(0, Math.sin(t * 7 + id)) * 0.9 : -1.3;
+      if (u.gear && busyItem) u.gear.rotation.y += dtSec * 1.5;
+      if (u.arm) { u.arm.rotation.y = busyItem ? Math.sin(t * 2 + id) * 1.4 : 0.6; u.fore.rotation.z = busyItem ? -1.5 + Math.sin(t * 4 + id) * 0.4 : -1.5; }
+      if (u.disc) u.disc.rotation.y += dtSec * 1.5;
     }
+
+    // Rauch über arbeitenden Öfen
+    let sn = 0;
+    const sp = new THREE.Vector3();
+    for (const [id, g] of groups) {
+      const u = g.userData;
+      if (!u.smoke || !s.busy.get(id) || sn > SMOKE_MAX - 4) continue;
+      sp.copy(u.smoke);
+      g.localToWorld(sp);
+      for (let i = 0; i < 4; i++) {
+        const ph = (t * 0.45 + i / 4 + id * 0.37) % 1;
+        const size = (0.6 + ph * 1.6) * (1 - ph * ph) * (u.kind === 'hochofen' ? 1.3 : 1);
+        q.identity();
+        v.set(sp.x + Math.sin(ph * 4 + id) * 0.08 + ph * 0.15, sp.y + ph * 0.9, sp.z - ph * 0.1);
+        sc.setScalar(Math.max(0.001, size));
+        m4.compose(v, q, sc);
+        smoke.setMatrixAt(sn++, m4);
+      }
+    }
+    smoke.count = sn;
+    smoke.instanceMatrix.needsUpdate = true;
 
     // Gegenstände auf Bändern und schwebende Produkte über Maschinen
     for (const p of itemPools.values()) p.n = 0;
@@ -677,7 +923,7 @@ function create(canvas) {
       const pool = itemPool(it, s.defs);
       if (!pool || pool.n >= 3000) continue;
       q.setFromAxisAngle(up, t * 1.5 + id);
-      v.set(g.position.x, 1.0 + Math.sin(t * 3 + id) * 0.06, g.position.z);
+      v.set(g.position.x, (g.userData.kind === 'bohrer' || g.userData.kind === 'hochofen' ? 1.75 : 1.15) + Math.sin(t * 3 + id) * 0.06, g.position.z);
       sc.set(1.3, 1.3, 1.3);
       m4.compose(v, q, sc);
       pool.inst.setMatrixAt(pool.n++, m4);
@@ -722,7 +968,7 @@ function create(canvas) {
     renderer.render(scene, camera);
   }
 
-  return { view, setWorld, render, pick, panStart, panMove, zoomAt, rotateBy, pinchStart, pinchMove, moveBy, resize };
+  return { view, icon, setWorld, render, pick, panStart, panMove, zoomAt, rotateBy, pinchStart, pinchMove, moveBy, resize };
 }
 
 window.Render3D = { create };

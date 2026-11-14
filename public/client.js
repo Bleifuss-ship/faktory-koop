@@ -829,7 +829,15 @@
       else if (t === 'delete') { btn.textContent = '🗑'; btn.title = 'Abreißen (X)'; }
       else {
         const def = defs.BUILDINGS[t];
-        btn.appendChild(iconCanvas((c) => drawBuilding(c, t, 0, 0, 72, 0)));
+        const pic = r3d && r3d.icon(t);
+        if (pic) {
+          const img = document.createElement('img');
+          img.src = pic;
+          img.alt = '';
+          btn.appendChild(img);
+        } else {
+          btn.appendChild(iconCanvas((c) => drawBuilding(c, t, 0, 0, 72, 0)));
+        }
         btn.title = `${def.name} (${def.key}): ${def.desc}`;
         const k = document.createElement('span');
         k.className = 'k';
