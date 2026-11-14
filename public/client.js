@@ -32,14 +32,33 @@
   const DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]];
 
   // ---------- Verbindung ----------
-  function connect(name, room) {
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    ws = new WebSocket(`${proto}://${location.host}`);
-    ws.onopen = () => ws.send(JSON.stringify({ t: 'join', name, room }));
+  // In der Handy-App gibt es keinen eigenen Server, dort muss eine Adresse eingetragen werden.
+  const isApp = !!window.Capacitor || !/^https?:$/.test(location.protocol);
+
+  function wsUrl(server) {
+    let s = (server || '').trim();
+    if (!s) return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
+    const secure = /^(https|wss):\/\//i.test(s);
+    s = s.replace(/^[a-z]+:\/\//i, '').replace(/\/+$/, '');
+    if (!/:\d+$/.test(s) && !secure) s += ':3000';
+    return `${secure ? 'wss' : 'ws'}://${s}`;
+  }
+
+  let everConnected = false;
+  function connect(name, room, server) {
+    ws = new WebSocket(wsUrl(server));
+    ws.onopen = () => { everConnected = true; ws.send(JSON.stringify({ t: 'join', name, room })); };
     ws.onmessage = (e) => handle(JSON.parse(e.data));
     ws.onclose = () => {
+      if (!everConnected) {
+        // Erste Verbindung fehlgeschlagen: zurück zum Startbildschirm
+        $('join').classList.remove('hidden');
+        $('server-hint').textContent = `Keine Verbindung zu ${server || 'diesem Rechner'}. Stimmt die Adresse, und läuft dort das Spiel?`;
+        $('server-hint').style.color = '#ff8a7a';
+        return;
+      }
       toast('Verbindung verloren, verbinde neu …');
-      setTimeout(() => connect(name, room), 2000);
+      setTimeout(() => connect(name, room, server), 2000);
     };
   }
 
@@ -730,13 +749,30 @@
   // ---------- Start ----------
   const params = new URLSearchParams(location.search);
   $('join-room').value = params.get('welt') || '';
-  try { $('join-name').value = localStorage.getItem('fk-name') || ''; } catch {}
+  try {
+    $('join-name').value = localStorage.getItem('fk-name') || '';
+    $('join-server').value = params.get('server') || localStorage.getItem('fk-server') || '';
+  } catch {}
+  if (isApp) {
+    $('join-server').placeholder = 'z. B. 192.168.1.20:3000';
+    $('join-server').required = true;
+    $('server-hint').textContent = 'Adresse des Rechners, auf dem Fabrik-Koop läuft. Sie steht dort auf dem Startbildschirm.';
+  } else {
+    // Adressen anzeigen, unter denen andere diesem Spiel beitreten können
+    fetch('/info').then((r) => r.json()).then((info) => {
+      if (info.addresses && info.addresses.length) {
+        $('lan-info').innerHTML = 'Mitspieler im selben Netzwerk verbinden sich mit: ' + info.addresses.map((a) => `<b>${escapeHtml(a)}</b>`).join(', ');
+      }
+    }).catch(() => {});
+  }
   $('join-form').addEventListener('submit', (e) => {
     e.preventDefault();
     const name = $('join-name').value.trim() || 'Gast';
-    try { localStorage.setItem('fk-name', name); } catch {}
+    const server = $('join-server').value.trim();
+    try { localStorage.setItem('fk-name', name); localStorage.setItem('fk-server', server); } catch {}
     $('join').classList.add('hidden');
-    connect(name, $('join-room').value.trim() || 'start');
+    everConnected = false;
+    connect(name, $('join-room').value.trim() || 'start', server);
   });
 
   requestAnimationFrame(frame);

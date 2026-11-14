@@ -1,0 +1,12 @@
+{
+  "appId": "de.bleifuss.fabrikkoop",
+  "appName": "Fabrik-Koop",
+  "webDir": "public",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}
