@@ -2,6 +2,8 @@
 // den Zustand und die Definitionen per WebSocket.
 'use strict';
 
+const SAVE_VERSION = 2;
+
 const DIRS = [
   [1, 0], // 0 rechts
   [0, 1], // 1 unten
@@ -11,60 +13,102 @@ const DIRS = [
 
 // Bodenvorkommen: Buchstabe im Kartenstring -> Rohstoff
 const DEPOSITS = {
-  r: 'rubinerz',
-  b: 'azurit',
-  s: 'quarzsand',
+  h: 'holz',
+  t: 'stein',
+  e: 'eisenerz',
+  k: 'kupfererz',
+  c: 'kohle',
+  w: 'wolframerz',
 };
 
 const ITEMS = {
-  rubinerz: { name: 'Rubinerz', color: '#c8463c', shape: 'rock' },
-  azurit: { name: 'Azurit', color: '#3c78c8', shape: 'rock' },
-  quarzsand: { name: 'Quarzsand', color: '#e0cf8a', shape: 'dust' },
-  rubinbarren: { name: 'Rubinbarren', color: '#e0584a', shape: 'bar' },
-  azurbarren: { name: 'Azurbarren', color: '#5a9ae8', shape: 'bar' },
-  glas: { name: 'Glasscheibe', color: '#a8e8e0', shape: 'pane' },
-  zahnrad: { name: 'Zahnrad', color: '#f0a040', shape: 'gear' },
-  spule: { name: 'Kupferspule', color: '#70b8ff', shape: 'coil' },
+  // Rohstoffe
+  holz: { name: 'Holz', color: '#a0703c', shape: 'log' },
+  stein: { name: 'Stein', color: '#9aa0a8', shape: 'rock' },
+  eisenerz: { name: 'Eisenerz', color: '#9a5a4e', shape: 'rock' },
+  kupfererz: { name: 'Kupfererz', color: '#f0943c', shape: 'rock' },
+  kohle: { name: 'Kohle', color: '#3a3d46', shape: 'rock' },
+  wolframerz: { name: 'Wolframerz', color: '#8a7fb0', shape: 'crystal' },
+  // Stufe 1
+  bretter: { name: 'Bretter', color: '#d9a866', shape: 'plank' },
+  ziegel: { name: 'Ziegel', color: '#d0624a', shape: 'brick' },
+  eisenbarren: { name: 'Eisenbarren', color: '#c4cad4', shape: 'bar' },
+  kupferbarren: { name: 'Kupferbarren', color: '#f09a5a', shape: 'bar' },
+  // Stufe 2
+  zahnrad: { name: 'Zahnrad', color: '#aab4c4', shape: 'gear' },
+  kupferdraht: { name: 'Kupferdraht', color: '#f0a060', shape: 'coil' },
+  stahl: { name: 'Stahlträger', color: '#6f7d92', shape: 'beam' },
+  wolframbarren: { name: 'Wolframbarren', color: '#9a8cd0', shape: 'bar' },
+  // Stufe 3
   motor: { name: 'Motor', color: '#ffb84a', shape: 'box' },
-  lampe: { name: 'Lampe', color: '#fff070', shape: 'bulb' },
-  robo: { name: 'Helferbot', color: '#b48cff', shape: 'bot' },
+  platine: { name: 'Platine', color: '#3fae6a', shape: 'board' },
+  stahlrahmen: { name: 'Stahlrahmen', color: '#5a6a82', shape: 'frame' },
+  bohrkopf: { name: 'Bohrkopf', color: '#b4a6ee', shape: 'drill' },
+  // Stufe 4
+  roboterarm: { name: 'Roboterarm', color: '#f06a55', shape: 'arm' },
+  helferbot: { name: 'Helferbot', color: '#b48cff', shape: 'bot' },
 };
 
 const RECIPES = {
+  saege: [
+    { in: { holz: 1 }, out: 'bretter', time: 15 },
+  ],
   schmelze: [
-    { in: { rubinerz: 1 }, out: 'rubinbarren', time: 20 },
-    { in: { azurit: 1 }, out: 'azurbarren', time: 20 },
-    { in: { quarzsand: 1 }, out: 'glas', time: 20 },
+    { in: { eisenerz: 1 }, out: 'eisenbarren', time: 20 },
+    { in: { kupfererz: 1 }, out: 'kupferbarren', time: 20 },
+    { in: { stein: 1 }, out: 'ziegel', time: 20 },
   ],
   presse: [
-    { in: { rubinbarren: 1 }, out: 'zahnrad', time: 15 },
-    { in: { azurbarren: 1 }, out: 'spule', time: 15 },
+    { in: { eisenbarren: 1 }, out: 'zahnrad', time: 15 },
+    { in: { kupferbarren: 1 }, out: 'kupferdraht', time: 15 },
   ],
-  montage: [
-    { in: { zahnrad: 1, spule: 1 }, out: 'motor', time: 30 },
-    { in: { glas: 1, spule: 1 }, out: 'lampe', time: 30 },
-    { in: { motor: 1, lampe: 1 }, out: 'robo', time: 40 },
+  hochofen: [
+    { in: { eisenbarren: 1, kohle: 1 }, out: 'stahl', time: 30 },
+    { in: { wolframerz: 1, kohle: 1 }, out: 'wolframbarren', time: 35 },
+  ],
+  werkbank: [
+    { in: { zahnrad: 1, kupferdraht: 1 }, out: 'motor', time: 30 },
+    { in: { kupferdraht: 1, bretter: 1 }, out: 'platine', time: 25 },
+    { in: { stahl: 1, ziegel: 1 }, out: 'stahlrahmen', time: 30 },
+    { in: { wolframbarren: 1, stahl: 1 }, out: 'bohrkopf', time: 35 },
+  ],
+  fabrikator: [
+    { in: { motor: 1, platine: 1 }, out: 'roboterarm', time: 40 },
+    { in: { roboterarm: 1, bohrkopf: 1 }, out: 'helferbot', time: 50 },
   ],
 };
 
 const BUILDINGS = {
   band: { name: 'Förderband', key: '1', desc: 'Transportiert Gegenstände in Pfeilrichtung.' },
-  bohrer: { name: 'Bohrer', key: '2', desc: 'Auf ein Vorkommen stellen. Gibt Rohstoffe nach vorne aus.' },
-  schmelze: { name: 'Schmelze', key: '3', desc: 'Erz/Sand → Barren/Glas.' },
-  presse: { name: 'Presse', key: '4', desc: 'Barren → Zahnrad/Spule.' },
-  montage: { name: 'Montage', key: '5', desc: 'Zwei Zutaten → Bauteil.' },
+  bohrer: { name: 'Bohrer', key: '2', desc: 'Auf ein Vorkommen stellen (auch Wald). Gibt Rohstoffe nach vorne aus.' },
+  saege: { name: 'Sägewerk', key: '3', desc: 'Holz → Bretter.' },
+  schmelze: { name: 'Schmelzofen', key: '4', desc: 'Erz/Stein → Barren/Ziegel.' },
+  verteiler: { name: 'Verteiler', key: '5', desc: 'Verteilt Gegenstände abwechselnd nach vorne, links und rechts.' },
+  presse: { name: 'Presse', key: '6', desc: 'Barren → Zahnrad/Draht.' },
+  hochofen: { name: 'Hochofen', key: '7', desc: 'Barren oder Erz + Kohle → Stahl/Wolfram.' },
+  werkbank: { name: 'Werkbank', key: '8', desc: 'Zwei Zutaten → Bauteil.' },
+  fabrikator: { name: 'Fabrikator', key: '9', desc: 'Bauteile → Roboterarm und Helferbot.' },
 };
 
-// Forschungsstufen: liefere Gegenstände an die Zentrale, um weiterzukommen.
-const RESEARCH = [
-  { name: 'Erste Barren', need: { rubinbarren: 20 }, unlock: ['presse'], text: 'Schaltet die Presse frei.' },
-  { name: 'Mechanik', need: { zahnrad: 20, azurbarren: 20 }, unlock: ['montage'], text: 'Schaltet die Montage frei.' },
-  { name: 'Antrieb', need: { motor: 15, glas: 30 }, bonus: { bohrer: 1.5 }, text: 'Bohrer arbeiten 50 % schneller.' },
-  { name: 'Beleuchtung', need: { lampe: 15, spule: 40 }, bonus: { band: 1.5 }, text: 'Förderbänder laufen 50 % schneller.' },
-  { name: 'Automatisierung', need: { robo: 10 }, text: 'Die Fabrik ist komplett. Gewonnen!' },
+// Techbaum: Jede Technik braucht ihre Vorgänger und kostet Gegenstände aus dem Lager der Zentrale.
+// col/row bestimmen nur die Position in der Anzeige.
+const TECHS = [
+  { id: 'grundlagen', name: 'Grundlagen', req: [], cost: {}, unlock: ['band', 'bohrer', 'saege', 'schmelze'], col: 0, row: 1, text: 'Bänder, Bohrer, Sägewerk und Schmelzofen.' },
+  { id: 'logistik', name: 'Logistik', req: ['grundlagen'], cost: { bretter: 20, ziegel: 10 }, unlock: ['verteiler'], col: 1, row: 0, text: 'Schaltet den Verteiler frei.' },
+  { id: 'metallbau', name: 'Metallbau', req: ['grundlagen'], cost: { eisenbarren: 20, bretter: 10 }, unlock: ['presse'], col: 1, row: 2, text: 'Schaltet die Presse frei.' },
+  { id: 'baender1', name: 'Schnelle Bänder', req: ['logistik'], cost: { eisenbarren: 30, ziegel: 20 }, bonus: { band: 1.5 }, col: 2, row: 0, text: 'Bänder laufen 50 % schneller.' },
+  { id: 'feuer', name: 'Hochofen', req: ['metallbau'], cost: { zahnrad: 20, ziegel: 30 }, unlock: ['hochofen'], col: 2, row: 1, text: 'Schaltet den Hochofen frei (braucht Kohle).' },
+  { id: 'handwerk', name: 'Werkbank', req: ['metallbau'], cost: { zahnrad: 20, kupferdraht: 20 }, unlock: ['werkbank'], col: 2, row: 3, text: 'Schaltet die Werkbank frei.' },
+  { id: 'bohrer1', name: 'Scharfe Bohrer', req: ['handwerk'], cost: { motor: 15 }, bonus: { bohrer: 1.5 }, col: 3, row: 3, text: 'Bohrer arbeiten 50 % schneller.' },
+  { id: 'baender2', name: 'Turbobänder', req: ['baender1', 'handwerk'], cost: { motor: 20, stahlrahmen: 10 }, bonus: { band: 1.5 }, col: 3, row: 0, text: 'Bänder laufen noch einmal 50 % schneller.' },
+  { id: 'fabrik', name: 'Fabrikator', req: ['feuer', 'handwerk'], cost: { platine: 20, stahl: 20 }, unlock: ['fabrikator'], col: 3, row: 2, text: 'Schaltet den Fabrikator frei.' },
+  { id: 'bohrer2', name: 'Wolframbohrer', req: ['bohrer1', 'feuer'], cost: { bohrkopf: 10 }, bonus: { bohrer: 1.5 }, col: 4, row: 3, text: 'Bohrer arbeiten noch einmal 50 % schneller.' },
+  { id: 'takt', name: 'Taktstraße', req: ['fabrik'], cost: { roboterarm: 10 }, bonus: { maschine: 1.5 }, col: 4, row: 1, text: 'Alle Maschinen arbeiten 50 % schneller.' },
+  { id: 'ziel', name: 'Helferbot-Programm', req: ['fabrik', 'bohrer2'], cost: { helferbot: 10 }, win: true, col: 5, row: 2, text: 'Das große Ziel: 10 Helferbots. Danach ist die Fabrik fertig!' },
 ];
+const TECH_BY_ID = Object.fromEntries(TECHS.map((t) => [t.id, t]));
 
-const START_UNLOCKED = ['band', 'bohrer', 'schmelze'];
+const MACHINES = Object.keys(RECIPES);
 const BASE_BELT_SPEED = 0.125; // Zellen pro Tick
 const BASE_DRILL_TIME = 25; // Ticks pro Rohstoff
 const HUB_SIZE = 3;
@@ -85,7 +129,6 @@ function generateMap(w, h, seed) {
   const tiles = new Array(w * h).fill('.');
   const cx = Math.floor(w / 2);
   const cy = Math.floor(h / 2);
-  const kinds = Object.keys(DEPOSITS);
   const blob = (bx, by, kind, size) => {
     for (let y = -size; y <= size; y++) {
       for (let x = -size; x <= size; x++) {
@@ -96,21 +139,35 @@ function generateMap(w, h, seed) {
       }
     }
   };
-  // Je ein garantiertes Vorkommen in der Nähe der Zentrale
-  kinds.forEach((k, i) => {
-    const a = (i / kinds.length) * Math.PI * 2 + rand();
+  // Garantierte Vorkommen: die Grundstoffe nah an der Zentrale, Kohle und Wolfram weiter weg
+  const near = ['h', 't', 'e', 'k'];
+  near.forEach((k, i) => {
+    const a = (i / near.length) * Math.PI * 2 + rand();
     blob(Math.round(cx + Math.cos(a) * 9), Math.round(cy + Math.sin(a) * 9), k, 3);
   });
-  // Weitere verstreute Vorkommen
-  for (let i = 0; i < (w * h) / 220; i++) {
+  [['c', 15, 3], ['w', 20, 2]].forEach(([k, r, size]) => {
+    const a = rand() * Math.PI * 2;
+    blob(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), k, size);
+  });
+  // Weitere verstreute Vorkommen (Wolfram selten, Wald häufig)
+  const weights = [['h', 5], ['t', 3], ['e', 3], ['k', 3], ['c', 2], ['w', 1]];
+  const total = weights.reduce((a, [, n]) => a + n, 0);
+  for (let i = 0; i < (w * h) / 200; i++) {
     const x = Math.floor(rand() * w);
     const y = Math.floor(rand() * h);
     if (Math.abs(x - cx) < 6 && Math.abs(y - cy) < 6) continue;
-    blob(x, y, kinds[Math.floor(rand() * kinds.length)], 2 + Math.floor(rand() * 3));
+    let r = rand() * total;
+    let kind = 'h';
+    for (const [k, n] of weights) { if ((r -= n) < 0) { kind = k; break; } }
+    blob(x, y, kind, 2 + Math.floor(rand() * 3));
   }
   // Platz um die Zentrale frei halten
   for (let y = cy - 3; y <= cy + 3; y++) for (let x = cx - 3; x <= cx + 3; x++) tiles[y * w + x] = '.';
   return tiles.join('');
+}
+
+function freshResearch() {
+  return { done: ['grundlagen'], stock: {}, delivered: {}, won: false };
 }
 
 class World {
@@ -123,7 +180,7 @@ class World {
     this.buildings = new Map(); // id -> Gebäude
     this.nextId = 1;
     this.tick = 0;
-    this.research = { level: 0, progress: {}, delivered: {} };
+    this.research = freshResearch();
     this.changes = []; // Gebäudeänderungen seit dem letzten Senden
     const hx = Math.floor(this.w / 2) - 1;
     const hy = Math.floor(this.h / 2) - 1;
@@ -135,21 +192,42 @@ class World {
   at(x, y) { return this.grid.get(this.key(x, y)); }
   inBounds(x, y) { return x >= 0 && y >= 0 && x < this.w && y < this.h; }
 
+  doneTechs() { return this.research.done.map((id) => TECH_BY_ID[id]).filter(Boolean); }
+
   unlocked() {
-    const u = new Set(START_UNLOCKED);
-    for (let i = 0; i < this.research.level && i < RESEARCH.length; i++) {
-      (RESEARCH[i].unlock || []).forEach((k) => u.add(k));
-    }
+    const u = new Set();
+    for (const t of this.doneTechs()) (t.unlock || []).forEach((k) => u.add(k));
     return [...u];
   }
 
   bonus(kind) {
     let f = 1;
-    for (let i = 0; i < this.research.level && i < RESEARCH.length; i++) {
-      const b = RESEARCH[i].bonus;
-      if (b && b[kind]) f *= b[kind];
-    }
+    for (const t of this.doneTechs()) if (t.bonus && t.bonus[kind]) f *= t.bonus[kind];
     return f;
+  }
+
+  // Kann diese Technik gerade erforscht werden? Gibt null oder einen Grund zurück.
+  canResearch(id) {
+    const t = TECH_BY_ID[id];
+    const r = this.research;
+    if (!t) return 'Unbekannte Technik';
+    if (r.done.includes(id)) return 'Schon erforscht';
+    if (!t.req.every((q) => r.done.includes(q))) return 'Erst die Vorgänger erforschen';
+    for (const [item, n] of Object.entries(t.cost)) {
+      if ((r.stock[item] || 0) < n) return `Es fehlen noch ${n - (r.stock[item] || 0)} × ${ITEMS[item].name}`;
+    }
+    return null;
+  }
+
+  doResearch(id) {
+    const err = this.canResearch(id);
+    if (err) return err;
+    const t = TECH_BY_ID[id];
+    for (const [item, n] of Object.entries(t.cost)) this.research.stock[item] -= n;
+    this.research.done.push(id);
+    if (t.win) this.research.won = true;
+    this.changes.push({ op: 'research', id });
+    return null;
   }
 
   _add(b, silent) {
@@ -174,7 +252,7 @@ class World {
     dir = ((dir | 0) % 4 + 4) % 4;
     const existing = this.at(x, y);
     if (existing) {
-      // Bänder dürfen gedreht/ersetzt werden, alles andere nicht
+      // Bänder dürfen gedreht werden, alles andere nicht
       if (existing.kind === kind && kind === 'band') {
         if (existing.dir !== dir) {
           existing.dir = dir;
@@ -201,16 +279,14 @@ class World {
   // Kann Gebäude b ein Item von Feld (fx,fy) annehmen?
   accepts(b, item, fx, fy) {
     if (b.kind === 'zentrale') return true;
-    if (b.kind === 'band') {
-      if (b.state.item) return false;
-      const [dx, dy] = DIRS[b.dir];
-      // Nicht von dem Feld annehmen, in das das Band zeigt (frontal)
-      return !(b.x + dx === fx && b.y + dy === fy);
+    const [dx, dy] = DIRS[b.dir];
+    const fromFront = b.x + dx === fx && b.y + dy === fy;
+    if (b.kind === 'band' || b.kind === 'verteiler') {
+      // Nicht von dem Feld annehmen, in das das Gebäude zeigt (frontal)
+      return !b.state.item && !fromFront;
     }
     const recipes = RECIPES[b.kind];
-    if (!recipes) return false;
-    const [dx, dy] = DIRS[b.dir];
-    if (b.x + dx === fx && b.y + dy === fy) return false; // Ausgang nimmt nichts an
+    if (!recipes || fromFront) return false;
     const buf = b.state.buf || {};
     const have = Object.keys(buf).filter((k) => buf[k] > 0);
     return recipes.some((r) => {
@@ -223,29 +299,21 @@ class World {
   insert(b, item) {
     if (b.kind === 'zentrale') { this.deliver(item); return; }
     if (b.kind === 'band') { b.state.item = item; b.state.p = 0; return; }
+    if (b.kind === 'verteiler') { b.state.item = item; return; }
     const buf = (b.state.buf = b.state.buf || {});
     buf[item] = (buf[item] || 0) + 1;
   }
 
+  // Alles, was an der Zentrale ankommt, landet im Lager und kann für Forschung ausgegeben werden.
   deliver(item) {
     const r = this.research;
     r.delivered[item] = (r.delivered[item] || 0) + 1;
-    const goal = RESEARCH[r.level];
-    if (!goal) return;
-    if (goal.need[item] && (r.progress[item] || 0) < goal.need[item]) {
-      r.progress[item] = (r.progress[item] || 0) + 1;
-    }
-    const done = Object.keys(goal.need).every((k) => (r.progress[k] || 0) >= goal.need[k]);
-    if (done) {
-      r.level++;
-      r.progress = {};
-      this.changes.push({ op: 'research', level: r.level });
-    }
+    r.stock[item] = (r.stock[item] || 0) + 1;
   }
 
-  // Versucht, ein Item aus Gebäude b nach vorne zu schieben.
-  push(b, item) {
-    const [dx, dy] = DIRS[b.dir];
+  // Versucht, ein Item aus Gebäude b in Richtung d (Standard: vorne) zu schieben.
+  push(b, item, d = b.dir) {
+    const [dx, dy] = DIRS[d];
     const tx = b.x + dx;
     const ty = b.y + dy;
     const t = this.at(tx, ty);
@@ -259,6 +327,7 @@ class World {
     this.tick++;
     const beltSpeed = BASE_BELT_SPEED * this.bonus('band');
     const drillTime = BASE_DRILL_TIME / this.bonus('bohrer');
+    const machineSpeed = this.bonus('maschine');
     for (const b of this.buildings.values()) {
       const s = b.state;
       switch (b.kind) {
@@ -272,6 +341,20 @@ class World {
             }
           }
           break;
+        case 'verteiler':
+          if (s.item) {
+            // vorne, rechts, links reihum
+            const order = [b.dir, (b.dir + 1) % 4, (b.dir + 3) % 4];
+            const start = s.next || 0;
+            for (let i = 0; i < 3; i++) {
+              const k = (start + i) % 3;
+              const item = s.item;
+              s.item = null;
+              if (this.push(b, item, order[k])) { s.next = (k + 1) % 3; break; }
+              s.item = item;
+            }
+          }
+          break;
         case 'bohrer':
           if (!s.out) {
             s.t = (s.t || 0) + 1;
@@ -279,22 +362,19 @@ class World {
           }
           if (s.out && this.push(b, s.out)) s.out = null;
           break;
-        case 'schmelze':
-        case 'presse':
-        case 'montage':
-          this.stepMachine(b);
-          break;
+        default:
+          if (RECIPES[b.kind]) this.stepMachine(b, machineSpeed);
       }
     }
   }
 
-  stepMachine(b) {
+  stepMachine(b, speed = 1) {
     const s = b.state;
     const buf = (s.buf = s.buf || {});
     if (s.out && this.push(b, s.out)) s.out = null;
     if (s.out) return;
     if (s.recipe) {
-      s.t = (s.t || 0) + 1;
+      s.t = (s.t || 0) + speed;
       if (s.t >= s.recipe.time) {
         s.out = s.recipe.out;
         s.recipe = null;
@@ -336,25 +416,37 @@ class World {
 
   toJSON() {
     return {
+      version: SAVE_VERSION,
       w: this.w, h: this.h, seed: this.seed, tiles: this.tiles, research: this.research,
       buildings: [...this.buildings.values()].filter((b) => b.kind !== 'zentrale').map((b) => ({
         kind: b.kind, x: b.x, y: b.y, dir: b.dir,
-        state: { item: b.state.item || null, p: b.state.p || 0, buf: b.state.buf, out: b.state.out || null },
+        state: { item: b.state.item || null, p: b.state.p || 0, buf: b.state.buf, out: b.state.out || null, next: b.state.next || 0 },
       })),
     };
   }
 
   static fromJSON(data) {
-    const w = new World({ w: data.w, h: data.h, seed: data.seed, tiles: data.tiles });
-    w.research = data.research || w.research;
+    let tiles = data.tiles;
+    let research = data.research;
+    if ((data.version || 1) < SAVE_VERSION) {
+      // Alte Welten (Rubin/Azurit/Quarz): Vorkommen umwandeln und Forschung neu beginnen
+      tiles = tiles.replace(/r/g, 'e').replace(/b/g, 'k').replace(/s/g, 't');
+      research = null;
+    }
+    const w = new World({ w: data.w, h: data.h, seed: data.seed, tiles });
+    if (research && Array.isArray(research.done)) w.research = { ...freshResearch(), ...research };
     for (const b of data.buildings || []) {
-      if (w.at(b.x, b.y)) continue;
-      w._add({ kind: b.kind, x: b.x, y: b.y, dir: b.dir, state: b.state || {} }, true);
+      if (!BUILDINGS[b.kind] || w.at(b.x, b.y)) continue;
+      const st = b.state || {};
+      const ok = (it) => (it && ITEMS[it] ? it : null);
+      const buf = {};
+      for (const [k, n] of Object.entries(st.buf || {})) if (ITEMS[k] && n > 0) buf[k] = n;
+      w._add({ kind: b.kind, x: b.x, y: b.y, dir: b.dir, state: { item: ok(st.item), p: st.p || 0, buf, out: ok(st.out), next: st.next || 0 } }, true);
     }
     return w;
   }
 }
 
-const DEFS = { DIRS, DEPOSITS, ITEMS, BUILDINGS, RECIPES, RESEARCH };
+const DEFS = { DIRS, DEPOSITS, ITEMS, BUILDINGS, RECIPES, TECHS, MACHINES };
 
-module.exports = { World, DEFS, generateMap };
+module.exports = { World, DEFS, generateMap, TECHS };
