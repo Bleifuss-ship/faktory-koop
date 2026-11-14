@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#1b1f2a">
+  <title>Fabrik-Koop</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <div id="top">
+    <div id="research">
+      <div id="research-title">Forschung</div>
+      <div id="research-goals"></div>
+      <div id="research-text"></div>
+    </div>
+    <div id="players"></div>
+  </div>
+
+  <div id="toast"></div>
+
+  <div id="bottom">
+    <div id="info"></div>
+    <div id="toolbar"></div>
+  </div>
+
+  <div id="join">
+    <form id="join-form">
+      <h1>Fabrik-Koop</h1>
+      <p>Baut gemeinsam eine Fabrik: Rohstoffe abbauen, verarbeiten und zur Zentrale bringen.</p>
+      <label>Dein Name <input id="join-name" maxlength="16" required autocomplete="nickname"></label>
+      <label>Welt <input id="join-room" maxlength="24" placeholder="start"></label>
+      <p class="hint">Alle mit demselben Weltnamen spielen zusammen.</p>
+      <button type="submit">Los geht's</button>
+      <details>
+        <summary>Steuerung</summary>
+        <ul>
+          <li><b>Bauen:</b> Gebäude unten wählen, klicken oder ziehen (Bänder folgen der Zugrichtung)</li>
+          <li><b>Drehen:</b> Taste R oder ⟳-Knopf</li>
+          <li><b>Abreißen:</b> Rechtsklick, Taste X oder 🗑-Werkzeug</li>
+          <li><b>Kamera:</b> Mittlere Maustaste/Leertaste + ziehen, WASD, Mausrad zoomt</li>
+          <li><b>Handy:</b> ✋ zum Verschieben, zwei Finger zum Zoomen</li>
+        </ul>
+      </details>
+    </form>
+  </div>
+
+  <script src="client.js"></script>
+</body>
+</html>

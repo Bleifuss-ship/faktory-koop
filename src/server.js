@@ -1,0 +1,177 @@
+// HTTP- und WebSocket-Server für "Fabrik-Koop".
+// Jede Welt ("Raum") läuft hier auf dem Server, alle Spieler im Raum bauen gemeinsam.
+'use strict';
+
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const { WebSocketServer } = require('ws');
+const { World, DEFS } = require('./game');
+
+const PORT = Number(process.env.PORT) || 3000;
+const TICK_MS = 100; // 10 Ticks pro Sekunde
+const SAVE_DIR = process.env.SAVE_DIR || path.join(__dirname, '..', 'saves');
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+const COLORS = ['#ff6b6b', '#4ecdc4', '#ffd93d', '#a78bfa', '#6bcb77', '#ff9f45', '#4d96ff', '#f472b6'];
+
+fs.mkdirSync(SAVE_DIR, { recursive: true });
+
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.json': 'application/json',
+};
+
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url, 'http://x');
+  const file = path.normalize(path.join(PUBLIC_DIR, url.pathname === '/' ? 'index.html' : url.pathname));
+  if (!file.startsWith(PUBLIC_DIR)) { res.writeHead(403); res.end(); return; }
+  fs.readFile(file, (err, data) => {
+    if (err) { res.writeHead(404); res.end('Nicht gefunden'); return; }
+    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+    res.end(data);
+  });
+});
+
+// --- Räume ---
+const rooms = new Map();
+
+function roomFile(name) { return path.join(SAVE_DIR, name + '.json'); }
+
+function cleanRoomName(name) {
+  return String(name || 'start').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 24) || 'start';
+}
+
+function getRoom(name) {
+  if (rooms.has(name)) return rooms.get(name);
+  let world;
+  try {
+    world = World.fromJSON(JSON.parse(fs.readFileSync(roomFile(name), 'utf8')));
+  } catch {
+    world = new World();
+  }
+  const room = { name, world, players: new Map(), dirty: true };
+  rooms.set(name, room);
+  return room;
+}
+
+function saveRoom(room, sync) {
+  if (!room.dirty) return;
+  room.dirty = false;
+  const data = JSON.stringify(room.world.toJSON());
+  if (sync) fs.writeFileSync(roomFile(room.name), data);
+  else fs.writeFile(roomFile(room.name), data, () => {});
+}
+
+function send(ws, msg) {
+  if (ws.readyState === 1) ws.send(JSON.stringify(msg));
+}
+
+function broadcast(room, msg) {
+  const s = JSON.stringify(msg);
+  for (const p of room.players.values()) if (p.ws.readyState === 1) p.ws.send(s);
+}
+
+function playerList(room) {
+  return [...room.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color }));
+}
+
+// --- WebSocket ---
+const wss = new WebSocketServer({ server });
+let nextPlayerId = 1;
+
+wss.on('connection', (ws) => {
+  let room = null;
+  let player = null;
+
+  ws.on('message', (raw) => {
+    let msg;
+    try { msg = JSON.parse(raw); } catch { return; }
+    if (!msg || typeof msg !== 'object') return;
+
+    if (msg.t === 'join' && !room) {
+      room = getRoom(cleanRoomName(msg.room));
+      const used = new Set([...room.players.values()].map((p) => p.color));
+      player = {
+        id: nextPlayerId++,
+        name: String(msg.name || 'Gast').slice(0, 16) || 'Gast',
+        color: COLORS.find((c) => !used.has(c)) || COLORS[room.players.size % COLORS.length],
+        ws,
+        cursor: null,
+      };
+      room.players.set(player.id, player);
+      send(ws, { t: 'init', you: player.id, room: room.name, defs: DEFS, world: room.world.fullState(), players: playerList(room) });
+      broadcast(room, { t: 'players', players: playerList(room) });
+      return;
+    }
+    if (!room) return;
+    const w = room.world;
+
+    switch (msg.t) {
+      case 'place': {
+        const cells = Array.isArray(msg.cells) ? msg.cells.slice(0, 200) : [msg];
+        for (const c of cells) {
+          const err = w.place(String(msg.kind), c.x | 0, c.y | 0, c.dir | 0);
+          if (err && cells.length === 1) send(ws, { t: 'error', text: err });
+        }
+        room.dirty = true;
+        break;
+      }
+      case 'remove': {
+        const cells = Array.isArray(msg.cells) ? msg.cells.slice(0, 200) : [msg];
+        for (const c of cells) w.remove(c.x | 0, c.y | 0);
+        room.dirty = true;
+        break;
+      }
+      case 'cursor':
+        player.cursor = { x: +msg.x || 0, y: +msg.y || 0 };
+        break;
+      case 'chat':
+        broadcast(room, { t: 'chat', from: player.name, color: player.color, text: String(msg.text || '').slice(0, 200) });
+        break;
+    }
+  });
+
+  ws.on('close', () => {
+    if (!room) return;
+    room.players.delete(player.id);
+    broadcast(room, { t: 'players', players: playerList(room) });
+  });
+});
+
+// --- Spielschleife ---
+setInterval(() => {
+  for (const room of rooms.values()) {
+    if (room.players.size === 0) continue; // leere Welten pausieren
+    const w = room.world;
+    w.step();
+    const changes = w.changes;
+    w.changes = [];
+    const snap = w.snapshot();
+    const msg = { t: 'tick', n: w.tick, items: snap.items, busy: snap.busy };
+    if (changes.length) msg.changes = changes;
+    if (changes.some((c) => c.op === 'research') || w.tick % 5 === 0) {
+      msg.research = w.research;
+      msg.unlocked = w.unlocked();
+      msg.beltSpeed = w.fullState().beltSpeed;
+    }
+    if (w.tick % 2 === 0) {
+      msg.cursors = [...room.players.values()].filter((p) => p.cursor).map((p) => [p.id, p.cursor.x, p.cursor.y]);
+    }
+    if (w.tick % 10 === 0) room.dirty = true;
+    broadcast(room, msg);
+  }
+}, TICK_MS);
+
+setInterval(() => rooms.forEach((r) => saveRoom(r)), 15000);
+
+function shutdown() {
+  rooms.forEach((r) => { r.dirty = true; saveRoom(r, true); });
+  process.exit(0);
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
+server.listen(PORT, () => console.log(`Fabrik-Koop läuft auf http://localhost:${PORT}`));
