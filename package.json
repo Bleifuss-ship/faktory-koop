@@ -1,0 +1,19 @@
+{
+  "name": "faktory-koop",
+  "version": "0.1.0",
+  "description": "Kooperatives Fabrikbau-Spiel im Browser",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "ws": "^8.23.0"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  }
+}
