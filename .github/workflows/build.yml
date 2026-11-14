@@ -46,7 +46,8 @@ jobs:
         with: { node-version: 20, cache: npm }
       - run: npm ci
       # Auf Windows kann das Programm-Symbol in die .exe eingebettet werden
-      - run: npx electron-builder --win portable --publish never -c.win.signAndEditExecutable=true
+      - run: npx electron-builder --win portable --publish never --config.win.signAndEditExecutable=true
+        shell: bash
       - uses: actions/upload-artifact@v4
         with:
           name: FabrikKoop-windows-exe
