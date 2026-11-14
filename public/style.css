@@ -70,8 +70,8 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
   .goal span { min-width: 0; }
   #players { display: none; }
   #toolbar { gap: 3px; padding: 5px; border-radius: 16px; }
-  #toolbar button { width: 40px; height: 46px; font-size: 18px; border-radius: 11px; }
-  #toolbar button canvas { width: 34px; height: 34px; }
+  #toolbar button { width: 37px; height: 46px; font-size: 17px; border-radius: 11px; }
+  #toolbar button canvas { width: 32px; height: 32px; }
   #toolbar button .k { display: none; }
   #toolbar .sep { margin: 6px 1px; }
 }

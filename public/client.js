@@ -4,13 +4,20 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const canvas = $('view');
-  const ctx = canvas.getContext('2d');
+  // 3D-Darstellung, wenn WebGL geht. Mit ?2d in der Adresse oder ohne WebGL gibt es die flache Ansicht.
+  let r3d = null;
+  try {
+    if (window.Render3D && !/[?&]2d\b/.test(location.search)) r3d = window.Render3D.create(canvas);
+  } catch (err) {
+    console.warn('3D nicht verfügbar, nutze 2D', err);
+  }
+  const ctx = r3d ? null : canvas.getContext('2d');
 
   // ---------- Zustand ----------
   let ws = null;
   let defs = null;
   let me = null;
-  const world = { w: 0, h: 0, tiles: '', buildings: new Map(), grid: new Map(), ground: null };
+  const world = { w: 0, h: 0, tiles: '', buildings: new Map(), grid: new Map(), ground: null, version: 0 };
   let items = [];
   let busy = new Map();
   let research = null;
@@ -21,6 +28,7 @@
   let lastTickAt = performance.now();
 
   const cam = { x: 0, y: 0, zoom: 40 };
+  if (r3d) r3d.view.cam = cam;
   let tool = 'hand';
   let dir = 0;
   let hover = null;
@@ -117,7 +125,8 @@
     research = w.research;
     unlocked = w.unlocked;
     beltSpeed = w.beltSpeed;
-    renderGround();
+    if (r3d) r3d.setWorld(world);
+    else renderGround();
     renderResearch();
   }
 
@@ -125,6 +134,7 @@
     const old = world.buildings.get(b.id);
     if (old) removeBuilding(b.id);
     world.buildings.set(b.id, b);
+    world.version++;
     for (let y = 0; y < b.size; y++) for (let x = 0; x < b.size; x++) world.grid.set((b.x + x) + ',' + (b.y + y), b);
   }
 
@@ -133,6 +143,7 @@
     if (!b) return;
     for (let y = 0; y < b.size; y++) for (let x = 0; x < b.size; x++) world.grid.delete((b.x + x) + ',' + (b.y + y));
     world.buildings.delete(id);
+    world.version++;
   }
 
   function applyChange(c) {
@@ -264,6 +275,7 @@
     return [(wx - cam.x) * cam.zoom + innerWidth / 2, (wy - cam.y) * cam.zoom + innerHeight / 2];
   }
   function toWorld(sx, sy) {
+    if (r3d) return r3d.pick(sx, sy);
     return [(sx - innerWidth / 2) / cam.zoom + cam.x, (sy - innerHeight / 2) / cam.zoom + cam.y];
   }
 
@@ -559,6 +571,12 @@
 
   function frame() {
     requestAnimationFrame(frame);
+    if (r3d) {
+      if (!world.w) return;
+      updateKeys();
+      r3d.render({ world, items, busy, beltSpeed, lastTickAt, hover, tool, dir, cursors, players, defs, canPlace });
+      return;
+    }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     // Wasser rund um die Insel
     ctx.fillStyle = '#7cc8e8';
@@ -743,9 +761,16 @@
     });
     const rot = document.createElement('button');
     rot.textContent = '⟳';
-    rot.title = 'Drehen (R)';
+    rot.title = 'Gebäude drehen (R)';
     rot.onclick = () => rotate();
     bar.appendChild(rot);
+    if (r3d) {
+      const camBtn = document.createElement('button');
+      camBtn.textContent = '🧭';
+      camBtn.title = 'Kamera drehen (Q/E, am Handy mit zwei Fingern)';
+      camBtn.onclick = () => r3d.rotateBy(-Math.PI / 4, true);
+      bar.appendChild(camBtn);
+    }
     setTool(unlocked.includes(tool) || tool === 'hand' || tool === 'delete' ? tool : 'hand');
   }
 
@@ -873,6 +898,7 @@
     if (pointers.size === 2) {
       // Zwei Finger: zoomen und verschieben
       const [a, b] = [...pointers.values()];
+      if (r3d) { r3d.pinchStart(a, b); pinch = {}; drag = null; return; }
       pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: cam.zoom, mid: toWorld((a.x + b.x) / 2, (a.y + b.y) / 2) };
       drag = null;
       return;
@@ -881,6 +907,7 @@
     hover = cell;
     if (e.button === 1 || spaceDown || (tool === 'hand' && e.button === 0)) {
       drag = { mode: 'pan', sx: e.clientX, sy: e.clientY, camx: cam.x, camy: cam.y };
+      if (r3d) r3d.panStart(e.clientX, e.clientY);
     } else if (e.button === 2 || tool === 'delete') {
       drag = { mode: 'erase', last: cell };
       eraseAt(cell);
@@ -894,6 +921,7 @@
     if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pinch && pointers.size === 2) {
       const [a, b] = [...pointers.values()];
+      if (r3d) { r3d.pinchMove(a, b); return; }
       const d = Math.hypot(a.x - b.x, a.y - b.y);
       cam.zoom = clampZoom(pinch.zoom * (d / pinch.dist));
       const mx = (a.x + b.x) / 2;
@@ -909,7 +937,9 @@
     const now = performance.now();
     if (now - lastCursorSent > 100) { send({ t: 'cursor', x: cell.wx, y: cell.wy }); lastCursorSent = now; }
     if (!drag) return;
-    if (drag.mode === 'pan') {
+    if (drag.mode === 'pan' && r3d) {
+      r3d.panMove(e.clientX, e.clientY);
+    } else if (drag.mode === 'pan') {
       cam.x = drag.camx - (e.clientX - drag.sx) / cam.zoom;
       cam.y = drag.camy - (e.clientY - drag.sy) / cam.zoom;
     } else if (changed && drag.mode === 'build') {
@@ -934,6 +964,7 @@
 
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
+    if (r3d) { r3d.zoomAt(Math.exp(e.deltaY * 0.0015), e.clientX, e.clientY); return; }
     const before = toWorld(e.clientX, e.clientY);
     cam.zoom = clampZoom(cam.zoom * Math.exp(-e.deltaY * 0.0015));
     const after = toWorld(e.clientX, e.clientY);
@@ -959,6 +990,14 @@
   addEventListener('blur', () => keys.clear());
 
   function updateKeys() {
+    if (r3d) {
+      const fw = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0);
+      const rt = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0);
+      if (fw || rt) r3d.moveBy(rt, fw);
+      if (keys.has('q')) r3d.rotateBy(0.035);
+      if (keys.has('e')) r3d.rotateBy(-0.035);
+      return;
+    }
     const sp = 12 / cam.zoom;
     if (keys.has('w') || keys.has('arrowup')) cam.y -= sp;
     if (keys.has('s') || keys.has('arrowdown')) cam.y += sp;

@@ -68,7 +68,7 @@ Optionale Umgebungsvariablen: `PORT` (Standard 3000), `SAVE_DIR` (Standard `./sa
 | Bauen | Gebäude wählen (oder Taste 1–5), klicken/ziehen | Gebäude wählen, tippen/ziehen |
 | Drehen | R | ⟳ |
 | Abreißen | Rechtsklick oder X | 🗑 wählen, tippen |
-| Kamera | WASD, Leertaste/mittlere Maustaste + ziehen, Mausrad | ✋ + ziehen, zwei Finger zoomen |
+| Kamera | WASD, Leertaste/mittlere Maustaste + ziehen, Mausrad zoomt, Q/E oder 🧭 dreht | ✋ + ziehen, zwei Finger zoomen und drehen, 🧭 dreht |
 
 ## Selbst bauen
 
@@ -87,5 +87,6 @@ npx cap sync android && cd android && ./gradlew assembleDebug   # braucht Androi
 - `desktop/main.js`: Desktop-App (Electron). Startet den Server im Hintergrund und öffnet das Spielfenster.
 - `android/`, `capacitor.config.json`: Android-App (Capacitor), die den Browser-Client aus `public/` enthält.
 - `.github/workflows/build.yml`: baut alle drei Apps.
-- `public/`: Browser-Client (Canvas-Grafik, alles selbst gezeichnet, keine Bilddateien).
+- `public/render3d.js`: 3D-Darstellung mit Three.js (liegt in `public/vendor/`, damit die Apps offline laufen). Ohne WebGL oder mit `?2d` in der Adresse gibt es die flache 2D-Ansicht.
+- `public/`: Browser-Client (alles selbst gezeichnet, keine Bilddateien).
 - `test/`: Tests für die Spiellogik (`npm test`).
