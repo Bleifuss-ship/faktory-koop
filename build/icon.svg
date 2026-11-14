@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1b1f2a"/>
+  <rect x="40" y="350" width="432" height="72" rx="14" fill="#3a3f52"/>
+  <g fill="#ffd27a" opacity=".55">
+    <path d="M90 366 l26 20 -26 20z"/><path d="M180 366 l26 20 -26 20z"/><path d="M270 366 l26 20 -26 20z"/><path d="M360 366 l26 20 -26 20z"/>
+  </g>
+  <g transform="translate(256 210)">
+    <g fill="#ffb84a">
+      <circle r="105"/>
+      <g id="t"><rect x="-26" y="-150" width="52" height="60" rx="8"/></g>
+      <use href="#t" transform="rotate(45)"/><use href="#t" transform="rotate(90)"/><use href="#t" transform="rotate(135)"/>
+      <use href="#t" transform="rotate(180)"/><use href="#t" transform="rotate(225)"/><use href="#t" transform="rotate(270)"/><use href="#t" transform="rotate(315)"/>
+    </g>
+    <circle r="48" fill="#1b1f2a"/>
+    <path d="M0 -26 l23 13 v26 l-23 13 -23 -13 v-26z" fill="#b48cff"/>
+  </g>
+</svg>

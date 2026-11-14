@@ -1,0 +1,92 @@
+name: Apps bauen
+
+# Baut Linux (.deb), Windows (.exe) und Android (.apk).
+# Die Dateien hängen an jedem Lauf unter "Artifacts". Bei einem Tag v* entsteht zusätzlich ein Release.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm test
+
+  linux:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx electron-builder --linux deb --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FabrikKoop-linux-deb
+          path: dist/*.deb
+          if-no-files-found: error
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      # Auf Windows kann das Programm-Symbol in die .exe eingebettet werden
+      - run: npx electron-builder --win portable --publish never --config.win.signAndEditExecutable=true
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FabrikKoop-windows-exe
+          path: dist/*.exe
+          if-no-files-found: error
+
+  android:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - run: npm ci
+      - run: npx cap sync android
+      - name: APK bauen
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - name: APK eindeutig benennen
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk "dist/FabrikKoop-${VERSION}-android.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FabrikKoop-android-apk
+          path: dist/*.apk
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - name: Release anlegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" out/* --repo "${GITHUB_REPOSITORY}" --title "Fabrik-Koop ${GITHUB_REF_NAME}" --generate-notes

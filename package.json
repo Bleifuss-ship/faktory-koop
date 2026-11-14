@@ -1,13 +1,21 @@
 {
   "name": "faktory-koop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Kooperatives Fabrikbau-Spiel im Browser",
-  "main": "src/server.js",
+  "main": "desktop/main.js",
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "desktop": "electron .",
+    "dist:linux": "electron-builder --linux deb",
+    "dist:win": "electron-builder --win portable",
+    "android:sync": "cap sync android",
+    "android:icons": "npx --yes @capacitor/assets@3 generate --android --iconBackgroundColor \"#1b1f2a\""
   },
-  "author": "",
+  "author": {
+    "name": "Sandra",
+    "email": "noreply@users.noreply.github.com"
+  },
   "license": "UNLICENSED",
   "dependencies": {
     "ws": "^8.23.0"
@@ -15,5 +23,52 @@
   "private": true,
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^6.2.3",
+    "@capacitor/cli": "^6.2.3",
+    "@capacitor/core": "^6.2.3",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  },
+  "productName": "Fabrik-Koop",
+  "homepage": "https://github.com/Bleifuss-ship/faktory-koop",
+  "build": {
+    "appId": "de.bleifuss.fabrikkoop",
+    "productName": "Fabrik-Koop",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "desktop/**",
+      "src/**",
+      "public/**",
+      "build/icon.png",
+      "package.json"
+    ],
+    "linux": {
+      "target": [
+        "deb"
+      ],
+      "category": "Game",
+      "icon": "build/icon.png",
+      "executableName": "fabrik-koop",
+      "artifactName": "FabrikKoop-${version}-linux-amd64.${ext}",
+      "synopsis": "Kooperatives Fabrikbau-Spiel",
+      "description": "Baut gemeinsam eine Fabrik: Rohstoffe abbauen, Förderbänder legen, forschen."
+    },
+    "deb": {
+      "packageName": "fabrik-koop"
+    },
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "build/icon.png",
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "FabrikKoop-${version}-windows-x64-portable.${ext}"
+    }
   }
 }

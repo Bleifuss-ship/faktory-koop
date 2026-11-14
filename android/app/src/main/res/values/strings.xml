@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Fabrik-Koop</string>
+    <string name="title_activity_main">Fabrik-Koop</string>
+    <string name="package_name">de.bleifuss.fabrikkoop</string>
+    <string name="custom_url_scheme">de.bleifuss.fabrikkoop</string>
+</resources>
