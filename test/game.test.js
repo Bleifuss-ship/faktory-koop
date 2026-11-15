@@ -122,3 +122,34 @@ test('Speichern und Laden, alte Spielstände werden umgewandelt', () => {
   assert.ok(!w3.at(1, 1));
   assert.strictEqual(w3.at(2, 2).state.item, null);
 });
+
+test('Karte: groß, mit Wasser, Wald und allen Erzen, Zentrale frei', () => {
+  const { generateMap } = require('../src/game');
+  for (const seed of [1, 2, 3, 42]) {
+    const w = new World({ seed });
+    assert.strictEqual(w.w, 160);
+    const t = w.tiles;
+    for (const ch of ['~', 'h', 't', 'e', 'k', 'c', 'w', 'u']) assert.ok(t.includes(ch), `Seed ${seed}: ${ch} fehlt`);
+    for (let y = 76; y <= 84; y++) for (let x = 76; x <= 84; x++) assert.strictEqual(t[y * 160 + x], '.');
+    assert.strictEqual(generateMap(160, 160, seed), t, 'gleicher Seed, gleiche Karte');
+  }
+});
+
+test('Im Wasser gehen nur Bänder', () => {
+  const tiles = '.'.repeat(400).split('');
+  tiles[2 * 20 + 2] = '~';
+  const w = new World({ w: 20, h: 20, seed: 1, tiles: tiles.join('') });
+  assert.match(w.place('saege', 2, 2, 0), /Wasser/);
+  assert.strictEqual(w.place('band', 2, 2, 0), null);
+});
+
+test('Zentrifuge macht aus Uranerz Pellets', () => {
+  const w = makeWorld('u');
+  w.research.done.push('kernkraft');
+  assert.strictEqual(w.place('bohrer', 2, 10, 0), null);
+  w.place('band', 3, 10, 0);
+  assert.strictEqual(w.place('zentrifuge', 4, 10, 0), null);
+  for (let x = 5; x <= 8; x++) w.place('band', x, 10, 0);
+  run(w, 500);
+  assert.ok((w.research.stock.uranpellet || 0) > 2, JSON.stringify(w.research.stock));
+});

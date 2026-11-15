@@ -4,6 +4,7 @@ Ein kooperatives Fabrikbau-Spiel im Browser. Mehrere Leute bauen gemeinsam in de
 
 <p align="center"><img src="docs/screenshot-pc.png" width="720" alt="Fabrik-Koop am PC"> <img src="docs/screenshot-handy.png" width="200" alt="Fabrik-Koop am Handy"></p>
 <p align="center"><img src="docs/screenshot-gebaeude.png" width="720" alt="Gebäude aus der Nähe"></p>
+<p align="center"><img src="docs/screenshot-karte.png" width="720" alt="Die große Karte mit Fluss, Seen und Wäldern"></p>
 <p align="center"><img src="docs/screenshot-techbaum.png" width="720" alt="Techbaum"></p>
 
 ## Apps herunterladen
@@ -49,7 +50,11 @@ Optionale Umgebungsvariablen: `PORT` (Standard 3000), `SAVE_DIR` (Standard `./sa
 
 ### Rohstoffe
 
-Holz (Wald), Stein, Eisenerz, Kupfererz, Kohle und Wolframerz. Kohle und Wolfram liegen weiter weg von der Zentrale, Wolfram ist selten.
+Holz (Wald), Stein, Eisenerz, Kupfererz, Kohle, Wolframerz und Uranerz (grün leuchtende Kristalle). Je seltener ein Erz, desto weiter draußen liegt es: Holz, Stein, Eisen und Kupfer gibt es direkt bei der Zentrale, Kohle etwas weiter weg, Wolfram und Uran nur am Rand.
+
+### Die Karte
+
+Neue Welten sind 160 × 160 Felder groß (vorher 80 × 80) und werden mit Rauschen natürlich erzeugt: große Wälder mit Lichtungen, felsiges Hochland mit Steinfeldern, Seen und ein Fluss, Erzfelder mit unregelmäßigen Rändern. Im **Wasser** gehen nur Förderbänder (als Brücke). Unten rechts zeigt eine **Übersichtskarte** die ganze Welt; antippen oder klicken springt dorthin, Taste M blendet sie aus. Bestehende Welten behalten ihre alte Karte, für die große Karte einfach einen neuen Weltnamen nehmen.
 
 ### Produktionsketten
 
@@ -59,8 +64,9 @@ Holz (Wald), Stein, Eisenerz, Kupfererz, Kohle und Wolframerz. Kohle und Wolfram
 | Schmelzofen | Eisenerz → Eisenbarren · Kupfererz → Kupferbarren · Stein → Ziegel |
 | Presse | Eisenbarren → Zahnrad · Kupferbarren → Kupferdraht |
 | Hochofen | Eisenbarren + Kohle → Stahlträger · Wolframerz + Kohle → Wolframbarren |
-| Werkbank | Zahnrad + Kupferdraht → Motor · Kupferdraht + Bretter → Platine · Stahlträger + Ziegel → Stahlrahmen · Wolframbarren + Stahlträger → Bohrkopf |
+| Werkbank | Zahnrad + Kupferdraht → Motor · Kupferdraht + Bretter → Platine · Stahlträger + Ziegel → Stahlrahmen · Wolframbarren + Stahlträger → Bohrkopf · Uranpellet + Stahlrahmen → Energiezelle |
 | Fabrikator | Motor + Platine → Roboterarm · Roboterarm + Bohrkopf → Helferbot |
+| Zentrifuge | Uranerz → Uranpellet |
 
 Der **Verteiler** schickt Gegenstände abwechselnd nach vorne, rechts und links.
 
@@ -72,7 +78,8 @@ Alles, was an der Zentrale ankommt, landet im Lager. Im Techbaum (Taste T oder K
 - Grundlagen → **Metallbau** (Presse) → **Hochofen** und **Werkbank**
 - Werkbank → **Scharfe Bohrer** → **Wolframbohrer** (braucht auch Hochofen)
 - Hochofen + Werkbank → **Fabrikator** → **Taktstraße** (alle Maschinen schneller)
-- Fabrikator + Wolframbohrer → **Helferbot-Programm**: 10 Helferbots, dann ist die Fabrik fertig
+- Wolframbohrer → **Urantechnik** (Zentrifuge) → **Kleinreaktor** (Bohrer und Maschinen schneller)
+- Taktstraße + Urantechnik → **Helferbot-Programm**: 10 Helferbots und 10 Energiezellen, dann ist die Fabrik fertig
 
 Alte Spielstände werden beim Laden umgewandelt: Die Vorkommen werden zu Eisen, Kupfer und Stein, und der Techbaum fängt von vorne an.
 
@@ -80,7 +87,7 @@ Alte Spielstände werden beim Laden umgewandelt: Die Vorkommen werden zu Eisen, 
 
 | | PC | Handy |
 |---|---|---|
-| Bauen | Gebäude wählen (oder Taste 1–9), klicken/ziehen | Gebäude wählen, tippen/ziehen |
+| Bauen | Gebäude wählen (oder Taste 1–9, 0), klicken/ziehen | Gebäude wählen, tippen/ziehen |
 | Drehen | R | ⟳ |
 | Abreißen | Rechtsklick oder X | 🗑 wählen, tippen |
 | Kamera | WASD, Leertaste/mittlere Maustaste + ziehen, Mausrad zoomt, Q/E oder 🧭 dreht | ✋ + ziehen, zwei Finger zoomen und drehen, 🧭 dreht |

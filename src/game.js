@@ -19,7 +19,10 @@ const DEPOSITS = {
   k: 'kupfererz',
   c: 'kohle',
   w: 'wolframerz',
+  u: 'uranerz',
 };
+// Wasser ('~'): Seen und Flüsse. Dort gehen nur Förderbänder (als Brücke).
+const WATER = '~';
 
 const ITEMS = {
   // Rohstoffe
@@ -29,6 +32,7 @@ const ITEMS = {
   kupfererz: { name: 'Kupfererz', color: '#f0943c', shape: 'rock' },
   kohle: { name: 'Kohle', color: '#3a3d46', shape: 'rock' },
   wolframerz: { name: 'Wolframerz', color: '#8a7fb0', shape: 'crystal' },
+  uranerz: { name: 'Uranerz', color: '#7ad94a', shape: 'crystal' },
   // Stufe 1
   bretter: { name: 'Bretter', color: '#d9a866', shape: 'plank' },
   ziegel: { name: 'Ziegel', color: '#d0624a', shape: 'brick' },
@@ -44,6 +48,8 @@ const ITEMS = {
   platine: { name: 'Platine', color: '#3fae6a', shape: 'board' },
   stahlrahmen: { name: 'Stahlrahmen', color: '#5a6a82', shape: 'frame' },
   bohrkopf: { name: 'Bohrkopf', color: '#b4a6ee', shape: 'drill' },
+  uranpellet: { name: 'Uranpellet', color: '#9cf06a', shape: 'pellet' },
+  energiezelle: { name: 'Energiezelle', color: '#4ad9a0', shape: 'cell' },
   // Stufe 4
   roboterarm: { name: 'Roboterarm', color: '#f06a55', shape: 'arm' },
   helferbot: { name: 'Helferbot', color: '#b48cff', shape: 'bot' },
@@ -71,12 +77,17 @@ const RECIPES = {
     { in: { kupferdraht: 1, bretter: 1 }, out: 'platine', time: 25 },
     { in: { stahl: 1, ziegel: 1 }, out: 'stahlrahmen', time: 30 },
     { in: { wolframbarren: 1, stahl: 1 }, out: 'bohrkopf', time: 35 },
+    { in: { uranpellet: 1, stahlrahmen: 1 }, out: 'energiezelle', time: 40 },
   ],
   fabrikator: [
     { in: { motor: 1, platine: 1 }, out: 'roboterarm', time: 40 },
     { in: { roboterarm: 1, bohrkopf: 1 }, out: 'helferbot', time: 50 },
   ],
 };
+
+RECIPES.zentrifuge = [
+  { in: { uranerz: 1 }, out: 'uranpellet', time: 40 },
+];
 
 const BUILDINGS = {
   band: { name: 'Förderband', key: '1', desc: 'Transportiert Gegenstände in Pfeilrichtung.' },
@@ -88,6 +99,7 @@ const BUILDINGS = {
   hochofen: { name: 'Hochofen', key: '7', desc: 'Barren oder Erz + Kohle → Stahl/Wolfram.' },
   werkbank: { name: 'Werkbank', key: '8', desc: 'Zwei Zutaten → Bauteil.' },
   fabrikator: { name: 'Fabrikator', key: '9', desc: 'Bauteile → Roboterarm und Helferbot.' },
+  zentrifuge: { name: 'Zentrifuge', key: '0', desc: 'Uranerz → Uranpellet.' },
 };
 
 // Techbaum: Jede Technik braucht ihre Vorgänger und kostet Gegenstände aus dem Lager der Zentrale.
@@ -104,7 +116,9 @@ const TECHS = [
   { id: 'fabrik', name: 'Fabrikator', req: ['feuer', 'handwerk'], cost: { platine: 20, stahl: 20 }, unlock: ['fabrikator'], col: 3, row: 2, text: 'Schaltet den Fabrikator frei.' },
   { id: 'bohrer2', name: 'Wolframbohrer', req: ['bohrer1', 'feuer'], cost: { bohrkopf: 10 }, bonus: { bohrer: 1.5 }, col: 4, row: 3, text: 'Bohrer arbeiten noch einmal 50 % schneller.' },
   { id: 'takt', name: 'Taktstraße', req: ['fabrik'], cost: { roboterarm: 10 }, bonus: { maschine: 1.5 }, col: 4, row: 1, text: 'Alle Maschinen arbeiten 50 % schneller.' },
-  { id: 'ziel', name: 'Helferbot-Programm', req: ['fabrik', 'bohrer2'], cost: { helferbot: 10 }, win: true, col: 5, row: 2, text: 'Das große Ziel: 10 Helferbots. Danach ist die Fabrik fertig!' },
+  { id: 'kernkraft', name: 'Urantechnik', req: ['bohrer2'], cost: { wolframbarren: 20, platine: 15 }, unlock: ['zentrifuge'], col: 5, row: 3, text: 'Schaltet die Zentrifuge frei (für Uranerz).' },
+  { id: 'reaktor', name: 'Kleinreaktor', req: ['kernkraft'], cost: { energiezelle: 15 }, bonus: { bohrer: 1.5, maschine: 1.25 }, col: 6, row: 4, text: 'Bohrer +50 %, Maschinen +25 %.' },
+  { id: 'ziel', name: 'Helferbot-Programm', req: ['takt', 'kernkraft'], cost: { helferbot: 10, energiezelle: 10 }, win: true, col: 6, row: 2, text: 'Das große Ziel: 10 Helferbots mit Energiezellen. Danach ist die Fabrik fertig!' },
 ];
 const TECH_BY_ID = Object.fromEntries(TECHS.map((t) => [t.id, t]));
 
@@ -124,45 +138,149 @@ function rng(seed) {
   };
 }
 
+// Glattes Rauschen (Value-Noise mit mehreren Oktaven), damit Wälder, Seen und
+// Erzfelder natürliche, zusammenhängende Formen bekommen.
+function makeNoise(seed) {
+  const R = rng(seed);
+  const perm = new Uint8Array(512);
+  const vals = new Float32Array(256);
+  for (let i = 0; i < 256; i++) { perm[i] = i; vals[i] = R(); }
+  for (let i = 255; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [perm[i], perm[j]] = [perm[j], perm[i]]; }
+  for (let i = 0; i < 256; i++) perm[i + 256] = perm[i];
+  const v = (x, y) => vals[perm[(x & 255) + perm[y & 255]]];
+  const sm = (t) => t * t * (3 - 2 * t);
+  const n = (x, y) => {
+    const x0 = Math.floor(x), y0 = Math.floor(y);
+    const fx = sm(x - x0), fy = sm(y - y0);
+    const a = v(x0, y0) + (v(x0 + 1, y0) - v(x0, y0)) * fx;
+    const b = v(x0, y0 + 1) + (v(x0 + 1, y0 + 1) - v(x0, y0 + 1)) * fx;
+    return a + (b - a) * fy;
+  };
+  return (x, y, oct = 4) => {
+    let sum = 0, amp = 1, f = 1, norm = 0;
+    for (let o = 0; o < oct; o++) { sum += n(x * f + o * 17.3, y * f - o * 9.1) * amp; norm += amp; amp *= 0.5; f *= 2; }
+    return sum / norm;
+  };
+}
+
 function generateMap(w, h, seed) {
   const rand = rng(seed);
   const tiles = new Array(w * h).fill('.');
   const cx = Math.floor(w / 2);
   const cy = Math.floor(h / 2);
-  const blob = (bx, by, kind, size) => {
-    for (let y = -size; y <= size; y++) {
-      for (let x = -size; x <= size; x++) {
-        const d = Math.hypot(x, y) + rand() * 1.5;
-        const tx = bx + x;
-        const ty = by + y;
-        if (d < size && tx >= 0 && ty >= 0 && tx < w && ty < h) tiles[ty * w + tx] = kind;
+  const idx = (x, y) => y * w + x;
+  const inside = (x, y) => x >= 0 && y >= 0 && x < w && y < h;
+  const scale = Math.max(w, h) / 160; // Merkmale wachsen mit der Kartengröße
+  const nWater = makeNoise(seed ^ 0x51a7);
+  const nWood = makeNoise(seed ^ 0x7007);
+  const nRock = makeNoise(seed ^ 0x3c3c);
+  const nShape = makeNoise(seed ^ 0x9e37);
+  const fromHub = (x, y) => Math.hypot(x - cx, y - cy);
+
+  // 1. Seen: tiefe Stellen im Rauschen, nicht direkt an der Zentrale
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const d = fromHub(x, y);
+    const lake = nWater(x / (26 * scale), y / (26 * scale));
+    if (lake < 0.3 - Math.max(0, 14 - d) * 0.03) tiles[idx(x, y)] = '~';
+  }
+  // 2. Ein Fluss schlängelt sich quer über die Karte (an der Zentrale vorbei)
+  {
+    const vertical = rand() < 0.5;
+    const len = vertical ? h : w;
+    const cross = vertical ? w : h;
+    const mid = vertical ? cx : cy;
+    const side = rand() < 0.5 ? -1 : 1;
+    let pos = mid + side * (18 + rand() * 10) * scale;
+    let drift = 0;
+    for (let t = 0; t < len; t++) {
+      drift += (rand() - 0.5) * 0.35;
+      drift *= 0.94;
+      pos += drift + (nShape(t / 20, 3.7) - 0.5) * 0.9;
+      // nie zu nah an die Zentrale
+      if (Math.abs(pos - mid) < 12 * scale) pos = mid + Math.sign(pos - mid || side) * 12 * scale;
+      pos = Math.max(2, Math.min(cross - 3, pos));
+      const width = 1.2 + nShape(t / 14, 8.2) * 1.6;
+      for (let o = -Math.ceil(width); o <= Math.ceil(width); o++) {
+        if (Math.abs(o) > width) continue;
+        const p = Math.round(pos + o);
+        const [x, y] = vertical ? [p, t] : [t, p];
+        if (inside(x, y)) tiles[idx(x, y)] = '~';
       }
     }
-  };
-  // Garantierte Vorkommen: die Grundstoffe nah an der Zentrale, Kohle und Wolfram weiter weg
-  const near = ['h', 't', 'e', 'k'];
-  near.forEach((k, i) => {
-    const a = (i / near.length) * Math.PI * 2 + rand();
-    blob(Math.round(cx + Math.cos(a) * 9), Math.round(cy + Math.sin(a) * 9), k, 3);
-  });
-  [['c', 15, 3], ['w', 20, 2]].forEach(([k, r, size]) => {
-    const a = rand() * Math.PI * 2;
-    blob(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), k, size);
-  });
-  // Weitere verstreute Vorkommen (Wolfram selten, Wald häufig)
-  const weights = [['h', 5], ['t', 3], ['e', 3], ['k', 3], ['c', 2], ['w', 1]];
-  const total = weights.reduce((a, [, n]) => a + n, 0);
-  for (let i = 0; i < (w * h) / 200; i++) {
-    const x = Math.floor(rand() * w);
-    const y = Math.floor(rand() * h);
-    if (Math.abs(x - cx) < 6 && Math.abs(y - cy) < 6) continue;
-    let r = rand() * total;
-    let kind = 'h';
-    for (const [k, n] of weights) { if ((r -= n) < 0) { kind = k; break; } }
-    blob(x, y, kind, 2 + Math.floor(rand() * 3));
   }
-  // Platz um die Zentrale frei halten
-  for (let y = cy - 3; y <= cy + 3; y++) for (let x = cx - 3; x <= cx + 3; x++) tiles[y * w + x] = '.';
+  // 3. Wälder: große zusammenhängende Flächen mit Lichtungen
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (tiles[idx(x, y)] !== '.') continue;
+    const f = nWood(x / (18 * scale), y / (18 * scale));
+    const gap = nShape(x / 4, y / 4, 2);
+    if (f > 0.6 && gap > 0.32) tiles[idx(x, y)] = 'h';
+    else if (f > 0.5 && gap > 0.78) tiles[idx(x, y)] = 'h'; // einzelne Bäume am Waldrand
+  }
+  // 4. Felsiges Hochland mit Steinvorkommen
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (tiles[idx(x, y)] === '~') continue;
+    const r = nRock(x / (20 * scale), y / (20 * scale));
+    if (r > 0.68 && nShape(x / 3, y / 3, 2) > 0.38) tiles[idx(x, y)] = 't';
+  }
+
+  // Erzfeld mit unregelmäßigem Rand (nicht über Wasser, außer bei erzwungenen Feldern)
+  const field = (bx, by, kind, size, force) => {
+    const R = Math.ceil(size + 2);
+    const off = rand() * 100;
+    for (let y = -R; y <= R; y++) for (let x = -R; x <= R; x++) {
+      const tx = bx + x, ty = by + y;
+      if (!inside(tx, ty)) continue;
+      const d = Math.hypot(x, y) / size + (nShape(tx / 3 + off, ty / 3 - off, 2) - 0.5) * 0.9;
+      if (d >= 0.8) continue;
+      if (!force && tiles[idx(tx, ty)] === '~') continue;
+      tiles[idx(tx, ty)] = kind;
+    }
+  };
+  // Ort im Abstandsring [r0, r1] um die Zentrale suchen, möglichst auf Land
+  const spot = (r0, r1) => {
+    let best = null;
+    for (let i = 0; i < 30; i++) {
+      const a = rand() * Math.PI * 2;
+      const r = r0 + rand() * (r1 - r0);
+      const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r);
+      if (!inside(x, y)) continue;
+      best = [x, y];
+      if (tiles[idx(x, y)] !== '~') break;
+    }
+    return best;
+  };
+
+  // 5. Garantierte Startvorkommen rund um die Zentrale
+  const near = ['h', 't', 'e', 'k'];
+  const a0 = rand() * Math.PI * 2;
+  near.forEach((k, i) => {
+    const a = a0 + (i / near.length) * Math.PI * 2 + (rand() - 0.5) * 0.6;
+    field(Math.round(cx + Math.cos(a) * 10), Math.round(cy + Math.sin(a) * 10), k, k === 'h' ? 3.6 : 3, true);
+  });
+  // 6. Weitere Felder: seltene Erze liegen weiter draußen und sind dafür größer
+  const ores = [
+    // Art, Anzahl je 160x160, Abstand von, bis, Größe von, bis
+    ['e', 9, 16, 80, 2.5, 4.5],
+    ['k', 9, 16, 80, 2.5, 4.5],
+    ['t', 5, 16, 80, 2.5, 4],
+    ['c', 8, 18, 80, 2.5, 4.5],
+    ['w', 5, 32, 85, 2, 3.5],
+    ['u', 4, 46, 90, 2, 3],
+  ];
+  const area = (w * h) / (160 * 160);
+  const reach = Math.hypot(cx, cy);
+  for (const [k, count, d0, d1, s0, s1] of ores) {
+    const n = Math.max(1, Math.round(count * area));
+    for (let i = 0; i < n; i++) {
+      const lo = Math.min(d0 * scale, reach * 0.8);
+      const hi = Math.min(d1 * scale, reach);
+      const p = spot(lo, Math.max(lo + 1, hi));
+      // Das erste Feld jeder Sorte wird auf jeden Fall gesetzt
+      if (p) field(p[0], p[1], k, s0 + rand() * (s1 - s0), i === 0);
+    }
+  }
+  // 7. Platz um die Zentrale frei halten
+  for (let y = cy - 4; y <= cy + 4; y++) for (let x = cx - 4; x <= cx + 4; x++) if (inside(x, y)) tiles[idx(x, y)] = '.';
   return tiles.join('');
 }
 
@@ -172,8 +290,8 @@ function freshResearch() {
 
 class World {
   constructor(opts = {}) {
-    this.w = opts.w || 80;
-    this.h = opts.h || 80;
+    this.w = opts.w || 160;
+    this.h = opts.h || 160;
     this.seed = opts.seed ?? Math.floor(Math.random() * 1e9);
     this.tiles = opts.tiles || generateMap(this.w, this.h, this.seed);
     this.grid = new Map(); // "x,y" -> Gebäude
@@ -263,6 +381,7 @@ class World {
       return 'Feld ist belegt';
     }
     if (kind === 'bohrer' && !DEPOSITS[this.tileAt(x, y)]) return 'Bohrer nur auf Vorkommen';
+    if (kind !== 'band' && this.tileAt(x, y) === WATER) return 'Im Wasser gehen nur Förderbänder';
     this._add({ kind, x, y, dir });
     return null;
   }
@@ -447,6 +566,6 @@ class World {
   }
 }
 
-const DEFS = { DIRS, DEPOSITS, ITEMS, BUILDINGS, RECIPES, TECHS, MACHINES };
+const DEFS = { DIRS, DEPOSITS, WATER, ITEMS, BUILDINGS, RECIPES, TECHS, MACHINES };
 
 module.exports = { World, DEFS, generateMap, TECHS };

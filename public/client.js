@@ -128,7 +128,70 @@
     if (r3d) r3d.setWorld(world);
     else renderGround();
     renderResearch();
+    renderMinimapBase();
   }
+
+  // ---------- Übersichtskarte ----------
+  // Ein Pixel pro Feld; Gebäude und Kameraposition werden laufend darübergezeichnet.
+  const mini = { el: $('minimap'), base: null, drawn: 0 };
+  const MINI_COL = { '.': '#9bd16f', '~': '#4aa6d6', h: '#4f9a4a', t: '#b4b8c0', e: '#b0705e', k: '#f0943c', c: '#3a3d46', w: '#9a8cd0', u: '#7ad94a' };
+  function renderMinimapBase() {
+    const b = document.createElement('canvas');
+    b.width = world.w; b.height = world.h;
+    const g = b.getContext('2d');
+    const img = g.createImageData(world.w, world.h);
+    const rgb = {};
+    for (const [k, v] of Object.entries(MINI_COL)) rgb[k] = [1, 3, 5].map((i) => parseInt(v.slice(i, i + 2), 16));
+    for (let i = 0; i < world.w * world.h; i++) {
+      const c = rgb[world.tiles[i]] || rgb['.'];
+      img.data.set([c[0], c[1], c[2], 255], i * 4);
+    }
+    g.putImageData(img, 0, 0);
+    mini.base = b;
+    mini.el.width = world.w; mini.el.height = world.h;
+    mini.el.classList.add('on');
+  }
+  function drawMinimap() {
+    if (!mini.base || mini.el.classList.contains('off')) return;
+    const now = performance.now();
+    if (now - mini.drawn < 200) return;
+    mini.drawn = now;
+    const g = mini.el.getContext('2d');
+    g.drawImage(mini.base, 0, 0);
+    for (const b of world.buildings.values()) {
+      g.fillStyle = b.kind === 'band' ? '#596173' : b.kind === 'zentrale' ? '#9a7cf2' : (KIND_COLORS[b.kind] || ['#fff'])[0];
+      g.fillRect(b.x, b.y, b.size, b.size);
+    }
+    // Sichtbereich: die vier Bildschirmecken auf den Boden projiziert
+    const pts = [[0, 0], [innerWidth, 0], [innerWidth, innerHeight], [0, innerHeight]].map(([x, y]) => toWorld(x, y));
+    g.strokeStyle = '#ffffff';
+    g.lineWidth = Math.max(1, world.w / 110);
+    g.beginPath();
+    pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+    g.closePath();
+    g.stroke();
+    for (const p of players) {
+      const c = cursors.get(p.id);
+      if (!c || p.id === me) continue;
+      g.fillStyle = p.color;
+      g.beginPath(); g.arc(c.x, c.y, world.w / 60, 0, Math.PI * 2); g.fill();
+    }
+  }
+  function miniJump(e) {
+    const r = mini.el.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * world.w;
+    const y = ((e.clientY - r.top) / r.height) * world.h;
+    if (r3d) { r3d.view.cam.x = x; r3d.view.cam.y = y; } else { cam.x = x; cam.y = y; }
+  }
+  mini.el.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    mini.el.setPointerCapture(e.pointerId);
+    miniJump(e);
+    const move = (ev) => miniJump(ev);
+    const up = () => { mini.el.removeEventListener('pointermove', move); mini.el.removeEventListener('pointerup', up); };
+    mini.el.addEventListener('pointermove', move);
+    mini.el.addEventListener('pointerup', up);
+  });
 
   function addBuilding(b) {
     const old = world.buildings.get(b.id);
@@ -158,7 +221,7 @@
 
   // ---------- Boden vorrendern ----------
   function renderGround() {
-    const S = 32;
+    const S = Math.max(12, Math.min(32, Math.floor(4096 / Math.max(world.w, world.h))));
     const g = document.createElement('canvas');
     g.width = world.w * S;
     g.height = world.h * S;
@@ -175,6 +238,36 @@
         const l = 62 + n * 10;
         c.fillStyle = `hsl(${96 + n * 12}, 52%, ${l}%)`;
         c.fillRect(x * S, y * S, S, S);
+      }
+    }
+    // Seen und Flüsse: Ufer, Wasser, kleine Wellen
+    const isW = (x, y) => world.tiles[y * world.w + x] === '~';
+    for (let y = 0; y < world.h; y++) {
+      for (let x = 0; x < world.w; x++) {
+        if (!isW(x, y)) continue;
+        c.fillStyle = '#e8d9a0';
+        c.beginPath(); c.arc(x * S + S / 2, y * S + S / 2, S * 0.78, 0, Math.PI * 2); c.fill();
+      }
+    }
+    for (let y = 0; y < world.h; y++) {
+      for (let x = 0; x < world.w; x++) {
+        if (!isW(x, y)) continue;
+        c.fillStyle = '#5fb8e0';
+        c.beginPath(); c.arc(x * S + S / 2, y * S + S / 2, S * 0.62, 0, Math.PI * 2); c.fill();
+      }
+    }
+    for (let y = 0; y < world.h; y++) {
+      for (let x = 0; x < world.w; x++) {
+        if (!isW(x, y)) continue;
+        const deep = isW(x - 1, y) && isW(x + 1, y) && isW(x, y - 1) && isW(x, y + 1);
+        c.fillStyle = deep ? '#4aa6d6' : '#5fb8e0';
+        c.fillRect(x * S, y * S, S, S);
+        if (hash(x, y, 7) < 0.25) {
+          c.strokeStyle = 'rgba(255,255,255,0.6)';
+          c.lineWidth = Math.max(1, S / 14);
+          const px = x * S + S * 0.5, py = y * S + S * 0.5;
+          c.beginPath(); c.moveTo(px - S * 0.25, py); c.quadraticCurveTo(px - S * 0.12, py - S * 0.12, px, py); c.quadraticCurveTo(px + S * 0.12, py - S * 0.12, px + S * 0.25, py); c.stroke();
+        }
       }
     }
     // Grasbüschel und Blumen
@@ -212,6 +305,7 @@
       k: { soil: '#c8cf9a', main: '#f0943c', light: '#6fd8c0', dark: '#c0682a' },
       c: { soil: '#9a9a8a', main: '#3a3d46', light: '#6a6e7a', dark: '#22242a' },
       w: { soil: '#b4b0c8', main: '#8a7fb0', light: '#c8c0ee', dark: '#5f5488' },
+      u: { soil: '#a8b890', main: '#7ad94a', light: '#d4ff9a', dark: '#3f8a2a' },
     };
     for (let y = 0; y < world.h; y++) {
       for (let x = 0; x < world.w; x++) {
@@ -244,7 +338,7 @@
             c.beginPath(); c.arc(px, py, r * 1.05, 0, Math.PI * 2); c.fill();
             c.fillStyle = d.light;
             c.beginPath(); c.arc(px - r * 0.35, py - r * 0.35, r * 0.4, 0, Math.PI * 2); c.fill();
-          } else if (t === 'w') {
+          } else if (t === 'w' || t === 'u') {
             // Kristall
             c.fillStyle = d.main;
             c.beginPath();
@@ -318,6 +412,7 @@
     hochofen: ['#d94f6b'],
     werkbank: ['#3fc48a'],
     fabrikator: ['#22b8c8'],
+    zentrifuge: ['#7ac943'],
     zentrale: ['#9a7cf2', '#6f52c870'],
   };
 
@@ -511,6 +606,19 @@
         c.fillRect(-s * 0.035, -s * 0.2, s * 0.07, s * 0.2);
         c.restore();
         c.beginPath(); c.arc(cx - s * 0.12, cy + s * 0.14, s * 0.07, 0, Math.PI * 2); c.fill();
+      } else if (kind === 'zentrifuge') {
+        c.save();
+        c.translate(cx, cy);
+        c.beginPath(); c.arc(0, 0, s * 0.2, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#3f8a2a';
+        c.rotate(spin * 2);
+        for (let i = 0; i < 3; i++) {
+          c.rotate((Math.PI * 2) / 3);
+          c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, s * 0.17, -0.45, 0.45); c.closePath(); c.fill();
+        }
+        c.fillStyle = '#d4ff9a';
+        c.beginPath(); c.arc(0, 0, s * 0.05, 0, Math.PI * 2); c.fill();
+        c.restore();
       } else if (kind === 'werkbank') {
         c.save();
         c.translate(cx, cy);
@@ -638,6 +746,13 @@
         c.lineTo(cx + r * 0.2, cy - r * 0.6); c.lineTo(cx + r * 0.8, cy - r * 0.6); c.lineTo(cx + r * 0.8, cy - r * 0.2);
         c.lineTo(cx + r * 0.45, cy - r * 0.2); c.lineTo(cx + r * 0.05, cy + r * 0.8); c.closePath();
         break;
+      case 'pellet':
+        roundRect(c, cx - r * 0.5, cy - r * 0.8, r, r * 1.6, r * 0.35);
+        break;
+      case 'cell':
+        roundRect(c, cx - r * 0.6, cy - r * 0.8, r * 1.2, r * 1.7, r * 0.2);
+        c.rect(cx - r * 0.25, cy - r, r * 0.5, r * 0.2);
+        break;
       default:
         c.arc(cx, cy, r, 0, Math.PI * 2);
     }
@@ -651,6 +766,7 @@
     if (it.shape === 'box') { c.fillRect(cx - r * 0.6, cy - r * 0.1, r * 1.2, r * 0.2); }
     if (it.shape === 'log') { c.fillStyle = '#e8c08a'; c.beginPath(); c.ellipse(cx + r * 0.75, cy, r * 0.22, r * 0.4, 0, 0, Math.PI * 2); c.fill(); }
     if (it.shape === 'board') { c.fillStyle = '#ffd27a'; for (let i = -1; i <= 1; i++) c.fillRect(cx - r * 0.6, cy + i * r * 0.4 - r * 0.05, r * 1.2, r * 0.1); }
+    if (it.shape === 'cell') { c.fillStyle = '#eaffd0'; c.beginPath(); c.moveTo(cx + r * 0.1, cy - r * 0.55); c.lineTo(cx - r * 0.25, cy + r * 0.1); c.lineTo(cx + r * 0.05, cy + r * 0.1); c.lineTo(cx - r * 0.1, cy + r * 0.65); c.lineTo(cx + r * 0.3, cy - r * 0.05); c.lineTo(cx, cy - r * 0.05); c.closePath(); c.fill(); }
     if (it.shape === 'brick') { c.fillRect(cx - r * 0.05, cy - r * 0.5, r * 0.1, r); }
     c.restore();
   }
@@ -660,6 +776,7 @@
     if (r3d) {
       if (!world.w) return;
       updateKeys();
+      drawMinimap();
       r3d.render({ world, items, busy, beltSpeed, lastTickAt, hover, tool, dir, cursors, players, defs, canPlace });
       return;
     }
@@ -669,6 +786,7 @@
     ctx.fillRect(0, 0, innerWidth, innerHeight);
     if (!world.ground) return;
     updateKeys();
+    drawMinimap();
 
     const s = cam.zoom;
     const [ox, oy] = toScreen(0, 0);
@@ -805,7 +923,9 @@
     if (x < 0 || y < 0 || x >= world.w || y >= world.h) return false;
     const b = world.grid.get(x + ',' + y);
     if (b && !(b.kind === 'band' && kind === 'band')) return false;
-    if (kind === 'bohrer' && world.tiles[y * world.w + x] === '.') return false;
+    const tile = world.tiles[y * world.w + x];
+    if (kind === 'bohrer' && !(defs && defs.DEPOSITS[tile])) return false;
+    if (kind !== 'band' && tile === '~') return false;
     return true;
   }
 
@@ -897,6 +1017,7 @@
       if (b && b.kind === 'zentrale') text = 'Zentrale: Hierhin liefern, um zu forschen.';
       else if (b) text = defs.BUILDINGS[b.kind].name + (busy.get(b.id) ? ' (stellt ' + defs.ITEMS[busy.get(b.id)].name + ' her)' : '');
       else if (defs && defs.DEPOSITS[t]) text = 'Vorkommen: ' + defs.ITEMS[defs.DEPOSITS[t]].name;
+      else if (t === '~') text = 'Wasser: Hier gehen nur Förderbänder (als Brücke).';
     }
     $('info').textContent = text;
   }
@@ -1173,6 +1294,7 @@
     if (k === 'escape') $('techtree').classList.add('hidden');
     if (k === 'h' || k === 'escape') setTool('hand');
     if (k === 'x' || k === 'delete') setTool('delete');
+    if (k === 'm') mini.el.classList.toggle('off');
     if (defs) for (const [id, b] of Object.entries(defs.BUILDINGS)) if (b.key === k) setTool(id);
   });
   addEventListener('keyup', (e) => {
