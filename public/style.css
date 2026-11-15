@@ -58,6 +58,14 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
 .goal span { min-width: 112px; }
 .bar { flex: 1; height: 10px; min-width: 60px; background: #eceff5; border-radius: 5px; overflow: hidden; }
 .bar > div { height: 100%; background: linear-gradient(90deg, #ffc25a, var(--accent)); border-radius: 5px; transition: width .3s; }
+#money { position: relative; margin-left: auto; margin-right: 8px; background: var(--panel); border-radius: 16px; padding: 8px 16px 8px 12px; pointer-events: auto; box-shadow: var(--shadow); font-size: 18px; font-weight: 900; color: #b07a10; white-space: nowrap; }
+#money::before { content: "🪙 "; }
+#money i { position: absolute; left: 50%; top: 100%; transform: translate(-50%, 0); font-style: normal; font-size: 14px; font-weight: 900; color: #2fb36a; opacity: 0; pointer-events: none; }
+#money i.pop { animation: moneypop 1.4s ease-out; }
+@keyframes moneypop { 0% { opacity: 0; transform: translate(-50%, -6px); } 15% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, 10px); } }
+#toolbar button .price { position: absolute; bottom: 1px; left: 0; right: 0; font-size: 9px; font-weight: 900; color: #b07a10; text-align: center; pointer-events: none; }
+#toolbar button.poor:not(:disabled) .price { color: #e04a3a; }
+#toolbar button.poor:not(:disabled) img, #toolbar button.poor:not(:disabled) canvas { opacity: 0.55; }
 #players { font-size: 13px; font-weight: 700; display: flex; flex-direction: column; gap: 4px; }
 #players:empty { display: none; }
 #players div { white-space: nowrap; }
@@ -111,6 +119,8 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
   .tech-mini:nth-child(n+2) { display: none; }
   .tree-box { border-radius: 16px; }
   #players { display: none; }
+  #money { font-size: 15px; padding: 6px 10px; margin-right: 0; }
+  #toolbar button .price { font-size: 8px; }
   #minimap { width: 92px; height: 92px; bottom: 76px; right: 8px; border-width: 3px; border-radius: 12px; }
   #toolbar { gap: 3px; padding: 5px; border-radius: 16px; }
   #toolbar button { width: 37px; height: 46px; font-size: 17px; border-radius: 11px; }

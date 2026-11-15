@@ -919,6 +919,54 @@ function create(canvas) {
   beltFrames.count = beltTops.count = 0;
   scene.add(beltFrames, beltTops);
 
+  // Bandkurven: Viertelkreis um die innere Ecke. Lokales System wie beim geraden Band
+  // (Laufrichtung +x), Zulauf von der Seite z = +0.5 (k = +1) oder z = -0.5 (k = -1).
+  const CURVE_SEG = 12;
+  function curveTopGeo(k) {
+    const pos = [], uv = [], idx = [];
+    const rIn = 0.5 - 0.29, rOut = 0.5 + 0.29;
+    for (let i = 0; i <= CURVE_SEG; i++) {
+      const p = i / CURVE_SEG;
+      const a = Math.PI + k * p * Math.PI / 2;
+      for (const [r, v] of [[rIn, 0], [rOut, 1]]) {
+        pos.push(0.5 + r * Math.cos(a), 0, k * 0.5 + r * Math.sin(a));
+        uv.push(p * Math.PI / 4, k > 0 ? v : 1 - v);
+      }
+      if (i) {
+        const o = (i - 1) * 2;
+        if (k > 0) idx.push(o, o + 2, o + 1, o + 1, o + 2, o + 3);
+        else idx.push(o, o + 1, o + 2, o + 1, o + 3, o + 2);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
+  }
+  function curveFrameGeo(k) {
+    const sh = new THREE.Shape();
+    const rIn = 0.5 - 0.39, rOut = 0.5 + 0.39;
+    const pt = (r, p) => { const a = Math.PI + k * p * Math.PI / 2; return [0.5 + r * Math.cos(a), k * 0.5 + r * Math.sin(a)]; };
+    sh.moveTo(...pt(rOut, 0));
+    for (let i = 1; i <= CURVE_SEG; i++) sh.lineTo(...pt(rOut, i / CURVE_SEG));
+    for (let i = CURVE_SEG; i >= 0; i--) sh.lineTo(...pt(rIn, i / CURVE_SEG));
+    sh.closePath();
+    // Form liegt in (x, z); extrudiert nach unten, dann auf 0..0.1 gehoben
+    return new THREE.ExtrudeGeometry(sh, { depth: 0.1, bevelEnabled: false }).rotateX(Math.PI / 2).translate(0, 0.1, 0);
+  }
+  const curveFrameMat = M.grey.clone(); curveFrameMat.side = THREE.DoubleSide;
+  const curves = {};
+  for (const k of [1, -1]) {
+    const f = new THREE.InstancedMesh(curveFrameGeo(k), curveFrameMat, MAX_BELTS);
+    const t = new THREE.InstancedMesh(curveTopGeo(k), beltMat, MAX_BELTS);
+    f.receiveShadow = t.receiveShadow = true;
+    f.count = t.count = 0;
+    scene.add(f, t);
+    curves[k] = { f, t, n: 0 };
+  }
+
   // --- Gegenstände als Instanzen je Sorte ---
   const ITEM_GEO = {
     rock: new THREE.DodecahedronGeometry(0.12, 0),
@@ -989,6 +1037,7 @@ function create(canvas) {
     buildDeposits(world);
   }
 
+  let curveFn = null;
   function syncBuildings(world) {
     if (world.version === builtVersion) return;
     builtVersion = world.version;
@@ -1003,10 +1052,21 @@ function create(canvas) {
     const up = new THREE.Vector3(0, 1, 0);
     const one = new THREE.Vector3(1, 1, 1);
     let n = 0;
+    curves[1].n = curves[-1].n = 0;
     for (const b of world.buildings.values()) {
       if (b.kind === 'band') {
         if (n >= MAX_BELTS) continue;
         q.setFromAxisAngle(up, -b.dir * Math.PI / 2);
+        const k = curveFn ? curveFn(b) : 0;
+        if (k) {
+          const cv = curves[k];
+          m4.compose(new THREE.Vector3(b.x + 0.5, 0, b.y + 0.5), q, one);
+          cv.f.setMatrixAt(cv.n, m4);
+          m4.compose(new THREE.Vector3(b.x + 0.5, BELT_TOP, b.y + 0.5), q, one);
+          cv.t.setMatrixAt(cv.n, m4);
+          cv.n++;
+          continue;
+        }
         m4.compose(new THREE.Vector3(b.x + 0.5, 0.05, b.y + 0.5), q, one);
         beltFrames.setMatrixAt(n, m4);
         m4.compose(new THREE.Vector3(b.x + 0.5, BELT_TOP, b.y + 0.5), q, one);
@@ -1023,6 +1083,13 @@ function create(canvas) {
       groups.set(b.id, g);
     }
     beltFrames.count = beltTops.count = n;
+    for (const k of [1, -1]) {
+      const cv = curves[k];
+      cv.f.count = cv.t.count = cv.n;
+      cv.f.instanceMatrix.needsUpdate = cv.t.instanceMatrix.needsUpdate = true;
+      cv.f.computeBoundingSphere();
+      cv.t.computeBoundingSphere();
+    }
     beltFrames.instanceMatrix.needsUpdate = beltTops.instanceMatrix.needsUpdate = true;
     beltFrames.computeBoundingSphere();
     beltTops.computeBoundingSphere();
@@ -1149,6 +1216,7 @@ function create(canvas) {
     const dtSec = Math.min(0.1, (now - lastT) / 1000);
     lastT = now;
     const t = now / 1000;
+    curveFn = s.beltCurve;
     syncBuildings(s.world);
     view.az += (view.azTarget - view.az) * Math.min(1, dtSec * 8);
     updateCamera();
@@ -1214,11 +1282,10 @@ function create(canvas) {
       const x = items[i];
       const y = items[i + 1];
       const b = s.world.grid.get(x + ',' + y);
-      const d = b ? b.dir : 0;
       const p = Math.min(1, items[i + 3] + (items[i + 3] < 1 ? s.beltSpeed * dt : 0));
-      const [dx, dy] = DIRS[d];
-      q.setFromAxisAngle(up, -d * Math.PI / 2);
-      v.set(x + 0.5 + dx * (p - 0.5), BELT_TOP + pool.lift, y + 0.5 + dy * (p - 0.5));
+      const [wx, wy, ang] = b && s.beltPoint ? s.beltPoint(b, p) : [x + 0.5, y + 0.5, 0];
+      q.setFromAxisAngle(up, -ang);
+      v.set(wx, BELT_TOP + pool.lift, wy);
       sc.set(1, 1, 1);
       m4.compose(v, q, sc);
       pool.inst.setMatrixAt(pool.n++, m4);

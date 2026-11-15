@@ -5,6 +5,7 @@ Ein kooperatives Fabrikbau-Spiel im Browser. Mehrere Leute bauen gemeinsam in de
 <p align="center"><img src="docs/screenshot-pc.png" width="720" alt="Fabrik-Koop am PC"> <img src="docs/screenshot-handy.png" width="200" alt="Fabrik-Koop am Handy"></p>
 <p align="center"><img src="docs/screenshot-gebaeude.png" width="720" alt="Gebäude aus der Nähe"></p>
 <p align="center"><img src="docs/screenshot-karte.png" width="720" alt="Die große Karte mit Fluss, Seen und Wäldern"></p>
+<p align="center"><img src="docs/screenshot-kurven.png" width="720" alt="Bandkurven und Geldanzeige"></p>
 <p align="center"><img src="docs/screenshot-techbaum.png" width="720" alt="Techbaum"></p>
 
 ## Apps herunterladen
@@ -47,6 +48,17 @@ Optionale Umgebungsvariablen: `PORT` (Standard 3000), `SAVE_DIR` (Standard `./sa
 2. **Förderbänder** ziehen. Beim Ziehen zeigen die Bänder automatisch in Zugrichtung.
 3. Rohstoffe durch **Maschinen** schicken und die Produkte zur **Zentrale** in der Mitte bringen.
 4. Die Forschungsziele oben links erfüllen, um neue Gebäude und Verbesserungen freizuschalten.
+
+### Geld
+
+Gebaut wird mit **Talern** (Anzeige oben rechts). Jede Lieferung an die Zentrale bringt Taler. Verarbeitete Waren sind mehr wert: Jedes Produkt bringt 30 % mehr als seine Zutaten zusammen, plus etwas für die Arbeitszeit. Abreißen erstattet den vollen Preis. Neue Welten starten mit 300 Talern, alte Spielstände bekommen einmalig 1.000.
+
+- Baukosten: Förderband 2 · Verteiler 20 · Bohrer 25 · Sägewerk 40 · Schmelzofen 60 · Presse 120 · Steinbrecher 150 · Hochofen 300 · Werkbank 400 · Chemiewerk 800 · Fabrikator 1.500 · Zentrifuge 2.500 · Montagehalle 5.000
+- Beispiele für Erlöse je Stück: Holz 1 · Eisenerz 2 · Eisenbarren 5 · Zahnrad 8 · Motor 24 · Steuerchip 65 · Roboterarm 120 · Computer 230 · Raumsonde 1.262
+
+### Förderbänder
+
+Bänder biegen sich von selbst: Wird ein Band nicht von hinten, sondern von der Seite beliefert, wird es zur Kurve. Die Gegenstände laufen sichtbar um die Kurve.
 
 ### Rohstoffe
 

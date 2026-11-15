@@ -159,6 +159,7 @@ test('Im Wasser gehen nur Bänder', () => {
 test('Zentrifuge macht aus Uranerz Pellets', () => {
   const w = makeWorld('u');
   w.research.done.push('kernkraft');
+  w.money = 10000;
   assert.strictEqual(w.place('bohrer', 2, 10, 0), null);
   w.place('band', 3, 10, 0);
   assert.strictEqual(w.place('zentrifuge', 4, 10, 0), null);
@@ -203,10 +204,34 @@ test('Großer Techbaum: jede Technik ist mit den Gebäuden ihrer Vorgänger beza
 test('Montagehalle verarbeitet drei Zutaten', () => {
   const w = makeWorld();
   w.research.done.push('montage');
+  w.money = 10000;
   w.place('montagehalle', 5, 5, 0);
   const b = w.at(5, 5);
   for (const it of ['roboterarm', 'bohrkopf', 'batterie']) { assert.ok(w.accepts(b, it, 4, 5), it); w.insert(b, it); }
   assert.ok(!w.accepts(b, 'computer', 4, 5));
   run(w, 200);
   assert.strictEqual(b.state.buf.roboterarm || 0, 0, JSON.stringify(b.state));
+});
+
+test('Geld: Bauen kostet, Abreißen erstattet, Liefern bringt Geld', () => {
+  const w = makeWorld();
+  assert.strictEqual(w.money, 300);
+  assert.strictEqual(w.place('schmelze', 4, 4, 0), null);
+  assert.strictEqual(w.money, 300 - DEFS.COSTS.schmelze);
+  w.place('band', 5, 5, 0);
+  w.place('band', 5, 5, 1); // drehen ist kostenlos
+  assert.strictEqual(w.money, 300 - DEFS.COSTS.schmelze - DEFS.COSTS.band);
+  w.remove(4, 4);
+  assert.strictEqual(w.money, 300 - DEFS.COSTS.band);
+  w.money = 10;
+  assert.match(w.place('schmelze', 4, 4, 0), /Nicht genug Geld/);
+  w.deliver('eisenbarren');
+  assert.strictEqual(w.money, 10 + DEFS.VALUES.eisenbarren);
+  // Wert steigt mit jeder Verarbeitungsstufe
+  for (const r of Object.values(DEFS.RECIPES).flat()) {
+    const sum = Object.entries(r.in).reduce((a, [i, n]) => a + DEFS.VALUES[i] * n, 0);
+    assert.ok(DEFS.VALUES[r.out] > sum, r.out);
+  }
+  const w2 = World.fromJSON(JSON.parse(JSON.stringify(w.toJSON())));
+  assert.strictEqual(w2.money, w.money);
 });

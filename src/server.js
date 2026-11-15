@@ -135,7 +135,7 @@ function startServer(opts = {}) {
           const cells = Array.isArray(msg.cells) ? msg.cells.slice(0, 200) : [msg];
           for (const c of cells) {
             const err = w.place(String(msg.kind), c.x | 0, c.y | 0, c.dir | 0);
-            if (err && cells.length === 1) send(ws, { t: 'error', text: err });
+            if (err && (cells.length === 1 || err.startsWith('Nicht genug Geld'))) { send(ws, { t: 'error', text: err }); if (cells.length > 1) break; }
           }
           room.dirty = true;
           break;
@@ -177,7 +177,7 @@ function startServer(opts = {}) {
       const changes = w.changes;
       w.changes = [];
       const snap = w.snapshot();
-      const msg = { t: 'tick', n: w.tick, items: snap.items, busy: snap.busy };
+      const msg = { t: 'tick', n: w.tick, items: snap.items, busy: snap.busy, money: w.money };
       if (changes.length) msg.changes = changes;
       if (changes.some((c) => c.op === 'research') || w.tick % 5 === 0) {
         msg.research = w.research;
