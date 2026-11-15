@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from './vendor/RoundedBoxGeometry.js';
 
 const DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]];
-const ROOF = { bohrer: 0xf6a83b, saege: 0xc98a4b, schmelze: 0xf06a55, verteiler: 0x8a94a8, presse: 0x5b8ff0, hochofen: 0xd94f6b, werkbank: 0x3fc48a, fabrikator: 0x22b8c8, zentrifuge: 0x7ac943, zentrale: 0x9a7cf2 };
+const ROOF = { bohrer: 0xf6a83b, saege: 0xc98a4b, schmelze: 0xf06a55, verteiler: 0x8a94a8, presse: 0x5b8ff0, hochofen: 0xd94f6b, werkbank: 0x3fc48a, fabrikator: 0x22b8c8, zentrifuge: 0x7ac943, brecher: 0xe0a030, chemiewerk: 0xe05aa0, montagehalle: 0x4a7ae0, zentrale: 0x9a7cf2 };
 const BELT_TOP = 0.11;
 
 function hash(x, y, k = 0) {
@@ -350,7 +350,7 @@ function create(canvas) {
       const px = x * S + S * (0.3 + hash(x, y, 8) * 0.4), py = y * S + S * 0.5;
       g.beginPath(); g.moveTo(px - S * 0.22, py); g.quadraticCurveTo(px - S * 0.11, py - S * 0.12, px, py); g.quadraticCurveTo(px + S * 0.11, py - S * 0.12, px + S * 0.22, py); g.stroke();
     }
-    const soil = { h: '#7cae58', t: '#c4c8b8', e: '#c4ae9e', k: '#c8cf9a', c: '#9a9a8a', w: '#b4b0c8', u: '#b0c890' };
+    const soil = { h: '#7cae58', t: '#c4c8b8', e: '#c4ae9e', k: '#c8cf9a', c: '#9a9a8a', w: '#b4b0c8', u: '#b0c890', q: '#f0e2ac', b: '#d8b0a0', s: '#e8e2a8', g: '#ccc4ac' };
     for (let y = 0; y < world.h; y++) {
       for (let x = 0; x < world.w; x++) {
         const t = world.tiles[y * world.w + x];
@@ -429,6 +429,10 @@ function create(canvas) {
         { geo: new THREE.OctahedronGeometry(0.09, 0).scale(0.7, 2, 0.7), mat: mat(0x7ad94a, { flatShading: true, emissive: 0x3fa020, emissiveIntensity: 0.55 }) },
         { geo: new THREE.DodecahedronGeometry(0.08, 0).translate(0.07, -0.08, 0.04), mat: mat(0x6a6e64, { flatShading: true }) },
       ], per: 3, y: 0.13, scale: [0.7, 1.3] },
+      q: { parts: [{ geo: new THREE.SphereGeometry(0.2, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1.2, 0.45, 0.9), mat: mat(0xead48e) }], per: 2, y: 0, scale: [0.8, 1.3] },
+      b: { parts: [{ geo: rock, mat: mat(0xc0603a, { flatShading: true }) }, { geo: new THREE.DodecahedronGeometry(0.06, 0).translate(0.1, -0.03, 0.05), mat: mat(0xe8a080, { flatShading: true }) }], per: 3, y: 0.07, scale: [0.7, 1.4] },
+      s: { tilt: true, parts: [{ geo: new THREE.OctahedronGeometry(0.08, 0).scale(0.9, 1.5, 0.9), mat: mat(0xf2dc3a, { flatShading: true, emissive: 0x806a00, emissiveIntensity: 0.25 }) }], per: 3, y: 0.1, scale: [0.7, 1.4] },
+      g: { parts: [{ geo: rock, mat: mat(0x9a948a, { flatShading: true }) }, { geo: new THREE.OctahedronGeometry(0.045, 0).translate(0.05, 0.09, 0.02), mat: new THREE.MeshPhongMaterial({ color: 0xffd040, shininess: 90, specular: 0xffffff, flatShading: true }) }], per: 3, y: 0.07, scale: [0.7, 1.3] },
     };
     for (const [id, k] of Object.entries(kinds)) {
       const t = k.tile || id;
@@ -496,6 +500,7 @@ function create(canvas) {
     steel: new THREE.MeshPhongMaterial({ color: 0xffffff, map: brushedTex, shininess: 80, specular: 0x888888 }),
     hazard: mat(0xffffff, { map: hazardTex }),
     uranGlow: new THREE.MeshBasicMaterial({ color: 0x9cff5a }),
+    acid: new THREE.MeshBasicMaterial({ color: 0xc8f05a }),
     corr: ROOF_CORR,
     stripes: mat(0xffffff, { map: stripeTex }),
     ember: new THREE.MeshBasicMaterial({ color: 0xffa040 }),
@@ -513,6 +518,12 @@ function create(canvas) {
     cone: new THREE.ConeGeometry(0.5, 1, 16),
     ring4: new THREE.TorusGeometry(0.5, 0.025, 4, 4),
     band: new THREE.TorusGeometry(0.5, 0.04, 6, 24),
+    // Satteldach: dreieckiges Profil, First in x-Richtung
+    hallRoof: (() => {
+      const sh = new THREE.Shape();
+      sh.moveTo(-0.42, 0); sh.lineTo(0.42, 0); sh.lineTo(0, 0.22); sh.closePath();
+      return new THREE.ExtrudeGeometry(sh, { depth: 0.86, bevelEnabled: false }).translate(0, 0, -0.43).rotateY(Math.PI / 2);
+    })(),
     sawBlade: (() => {
       const s = new THREE.Shape();
       const teeth = 24;
@@ -748,6 +759,60 @@ function create(canvas) {
       part(g, BG.cyl8, X.metal, [0.07, 0.28, 0.07], [-0.2, 0.52, -0.25], [0, 0, Math.PI / 2]);
       part(g, BG.box, X.hazard, [0.16, 0.16, 0.01], [0, 0.29, 0.29]);
       part(g, BG.box, X.stripes, [0.6, 0.04, 0.6], [0, 0.16, 0]);
+    } else if (kind === 'brecher') {
+      // Steinbrecher: Stahlgehäuse, Einfülltrichter mit zwei Walzen, Motor mit Riemen, Kieshaufen
+      part(g, BG.box, X.darkMetal, [0.62, 0.3, 0.6], [0, 0.23, 0]);
+      part(g, BG.box, X.stripes, [0.63, 0.04, 0.61], [0, 0.36, 0]);
+      part(g, new THREE.CylinderGeometry(0.42, 0.24, 0.3, 4, 1, true), ghost || R.brecher, [1, 1, 1], [0, 0.53, 0], [0, Math.PI / 4, 0]);
+      const rollers = [];
+      for (const sx of [-1, 1]) {
+        const r = new THREE.Group();
+        r.position.set(sx * 0.08, 0.42, 0);
+        part(r, BG.cyl8, X.steel, [0.14, 0.4, 0.14], [0, 0, 0], [Math.PI / 2, 0, 0]);
+        for (let i = 0; i < 4; i++) part(r, BG.box, X.darkMetal, [0.03, 0.4, 0.03], [Math.cos(i * 1.57) * 0.07, Math.sin(i * 1.57) * 0.07, 0], [Math.PI / 2, 0, 0]);
+        g.add(r);
+        rollers.push(r);
+      }
+      g.userData.rollers = rollers;
+      part(g, BG.box, R.brecher, [0.18, 0.16, 0.16], [-0.24, 0.46, 0.3]);
+      part(g, BG.cyl, X.darkMetal, [0.12, 0.04, 0.12], [-0.24, 0.46, 0.39], [Math.PI / 2, 0, 0]);
+      for (let i = 0; i < 5; i++) part(g, new THREE.DodecahedronGeometry(0.035, 0), ghost || mat(0xb8b4aa, { flatShading: true }), [1, 1, 1], [0.3 + (i % 2) * 0.05, 0.1 + Math.floor(i / 3) * 0.04, -0.28 + i * 0.03]);
+    } else if (kind === 'chemiewerk') {
+      // Chemiewerk: zwei Tanks mit Kuppeln, Rohrbrücke, Glaskolben mit leuchtender Flüssigkeit, Abluftkamin
+      for (const [tx, tz, hgt] of [[-0.18, -0.18, 0.62], [0.12, -0.2, 0.48]]) {
+        part(g, BG.cyl, R.chemiewerk, [0.3, hgt, 0.3], [tx, 0.08 + hgt / 2, tz]);
+        part(g, BG.dome, X.steel, [0.3, 0.14, 0.3], [tx, 0.08 + hgt, tz]);
+        for (const y of [0.25, 0.5]) if (y < hgt) part(g, BG.band, X.darkMetal, [0.3, 0.3, 0.3], [tx, 0.08 + y, tz], [Math.PI / 2, 0, 0]);
+      }
+      part(g, BG.cyl8, X.metal, [0.05, 0.32, 0.05], [-0.03, 0.62, -0.19], [0, 0, Math.PI / 2]);
+      part(g, BG.cyl8, X.metal, [0.05, 0.36, 0.05], [0.12, 0.3, 0.05], [Math.PI / 2, 0, 0]);
+      part(g, BG.sphere, ghost || BM.glass, [0.28, 0.28, 0.28], [0.12, 0.25, 0.22]);
+      part(g, BG.cyl, ghost || BM.glass, [0.08, 0.14, 0.08], [0.12, 0.42, 0.22]);
+      const liquid = part(g, BG.sphere, ghost || BM.acid, [0.22, 0.16, 0.22], [0.12, 0.21, 0.22]);
+      g.userData.bubble = liquid;
+      part(g, BG.cyl, X.brickDark, [0.1, 0.5, 0.1], [-0.25, 0.33, 0.24]);
+      part(g, BG.cyl, X.darkMetal, [0.13, 0.04, 0.13], [-0.25, 0.6, 0.24]);
+      g.userData.smoke = new THREE.Vector3(-0.25, 0.64, 0.24);
+      part(g, BG.box, X.hazard, [0.01, 0.12, 0.12], [-0.03, 0.3, -0.18]);
+    } else if (kind === 'montagehalle') {
+      // Montagehalle: Halle mit Wellblech-Satteldach, Oberlichtern, großem Rolltor und Laufkran
+      part(g, BG.box, R.montagehalle, [0.8, 0.36, 0.72], [0, 0.26, 0]);
+      part(g, BG.hallRoof, ghost || ROOF_CORR.montagehalle, [1, 1, 1], [0, 0.44, 0]);
+      part(g, BG.box, ghost || BM.glass, [0.6, 0.02, 0.12], [0, 0.55, 0.16], [0.5, 0, 0]);
+      part(g, BG.box, X.darkMetal, [0.02, 0.26, 0.38], [0.405, 0.2, 0]);
+      for (let i = 0; i < 5; i++) part(g, BG.box, X.metal, [0.025, 0.02, 0.38], [0.415, 0.1 + i * 0.05, 0]);
+      part(g, BG.box, X.stripes, [0.03, 0.03, 0.42], [0.41, 0.35, 0]);
+      // Laufkran auf zwei Stützen vor der Halle
+      for (const z of [-0.33, 0.33]) part(g, BG.box, X.stripes, [0.04, 0.5, 0.04], [-0.36, 0.33, z]);
+      part(g, BG.box, R.brecher, [0.06, 0.06, 0.74], [-0.36, 0.6, 0]);
+      const trolley = new THREE.Group();
+      trolley.position.set(-0.36, 0.55, 0);
+      part(trolley, BG.box, X.darkMetal, [0.1, 0.06, 0.1], [0, 0, 0]);
+      part(trolley, BG.box, X.steel, [0.01, 0.2, 0.01], [0, -0.13, 0]);
+      part(trolley, BG.box, R.montagehalle, [0.1, 0.08, 0.1], [0, -0.26, 0]);
+      g.add(trolley);
+      g.userData.trolley = trolley;
+      g.userData.lampOn = part(g, BG.sphere, X.lampGreen, [0.05, 0.05, 0.05], [0.405, 0.4, 0.24]);
     } else if (kind === 'verteiler') {
       // Verteiler: flacher Metallkasten mit Drehscheibe und drei Pfeilen
       part(g, new RoundedBoxGeometry(0.72, 0.18, 0.72, 2, 0.05), X.metal, [1, 1, 1], [0, 0.17, 0]);
@@ -796,7 +861,7 @@ function create(canvas) {
       const model = makeBuilding(kind);
       if (kind === 'band') model.scale.setScalar(1.1);
       icon.scene.add(model);
-      const tall = kind === 'bohrer' || kind === 'hochofen' ? 0.15 : kind === 'zentrifuge' ? 0.05 : 0;
+      const tall = kind === 'bohrer' || kind === 'hochofen' ? 0.15 : kind === 'zentrifuge' || kind === 'chemiewerk' || kind === 'montagehalle' ? 0.05 : 0;
       icon.cam.position.set(1.55, 1.75 + tall, 2.1);
       icon.cam.lookAt(0, 0.32 + tall, 0);
       icon.r.render(icon.scene, icon.cam);
@@ -876,8 +941,9 @@ function create(canvas) {
     arm: new THREE.BoxGeometry(0.06, 0.06, 0.26),
     pellet: new THREE.CylinderGeometry(0.06, 0.06, 0.13, 10),
     cell: new RoundedBoxGeometry(0.14, 0.24, 0.14, 1, 0.03),
+    probe: new THREE.ConeGeometry(0.1, 0.28, 6),
   };
-  const ITEM_LIFT = { rock: 0.1, dust: 0, bar: 0.05, pane: 0.02, gear: 0, coil: 0.09, box: 0.08, bulb: 0.11, bot: 0.12, log: 0.07, crystal: 0.15, plank: 0.03, brick: 0.05, beam: 0.04, board: 0.02, frame: 0.03, drill: 0.12, arm: 0.03, pellet: 0.07, cell: 0.12 };
+  const ITEM_LIFT = { rock: 0.1, dust: 0, bar: 0.05, pane: 0.02, gear: 0, coil: 0.09, box: 0.08, bulb: 0.11, bot: 0.12, log: 0.07, crystal: 0.15, plank: 0.03, brick: 0.05, beam: 0.04, board: 0.02, frame: 0.03, drill: 0.12, arm: 0.03, pellet: 0.07, cell: 0.12, probe: 0.14 };
   const itemPools = new Map();
   function itemPool(id, defs) {
     if (itemPools.has(id)) return itemPools.get(id);
@@ -1110,6 +1176,9 @@ function create(canvas) {
       if (u.gear && busyItem) u.gear.rotation.y += dtSec * 1.5;
       if (u.arm) { u.arm.rotation.y = busyItem ? Math.sin(t * 2 + id) * 1.4 : 0.6; u.fore.rotation.z = busyItem ? -1.5 + Math.sin(t * 4 + id) * 0.4 : -1.5; }
       if (u.disc) u.disc.rotation.y += dtSec * 1.5;
+      if (u.rollers && busyItem) { u.rollers[0].rotation.z += dtSec * 8; u.rollers[1].rotation.z -= dtSec * 8; }
+      if (u.bubble) { const k = busyItem ? 1 + Math.sin(t * 9 + id) * 0.08 : 1; u.bubble.scale.set(0.22 * k, 0.16 * (busyItem ? 1 + Math.sin(t * 11 + id) * 0.12 : 1), 0.22 * k); }
+      if (u.trolley) { u.trolley.position.z = busyItem ? Math.sin(t * 1.2 + id) * 0.28 : 0; u.trolley.children[2].position.y = busyItem ? -0.26 + Math.abs(Math.sin(t * 2.4 + id)) * 0.1 : -0.26; }
       if (u.rotor && busyItem) u.rotor.rotation.y += dtSec * 14;
       if (u.core) { const k = busyItem ? 1 + Math.sin(t * 8 + id) * 0.18 : 0.8; u.core.scale.set(0.22 * k, 0.15, 0.22 * k); }
     }
