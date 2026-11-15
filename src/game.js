@@ -126,6 +126,7 @@ const MACHINES = Object.keys(RECIPES);
 const BASE_BELT_SPEED = 0.125; // Zellen pro Tick
 const BASE_DRILL_TIME = 25; // Ticks pro Rohstoff
 const HUB_SIZE = 3;
+const MAP_SIZE = 160;
 
 // --- Zufall mit Startwert, damit jede Welt reproduzierbar ist ---
 function rng(seed) {
@@ -290,8 +291,8 @@ function freshResearch() {
 
 class World {
   constructor(opts = {}) {
-    this.w = opts.w || 160;
-    this.h = opts.h || 160;
+    this.w = opts.w || MAP_SIZE;
+    this.h = opts.h || MAP_SIZE;
     this.seed = opts.seed ?? Math.floor(Math.random() * 1e9);
     this.tiles = opts.tiles || generateMap(this.w, this.h, this.seed);
     this.grid = new Map(); // "x,y" -> Gebäude
@@ -552,15 +553,27 @@ class World {
       tiles = tiles.replace(/r/g, 'e').replace(/b/g, 'k').replace(/s/g, 't');
       research = null;
     }
-    const w = new World({ w: data.w, h: data.h, seed: data.seed, tiles });
+    // Alte kleine Welten (z. B. 80x80) werden auf die große Karte erweitert: Die alte Fläche
+    // bleibt in der Mitte erhalten, drumherum entsteht neues Land mit allen Erzen.
+    let ox = 0, oy = 0, W = data.w, H = data.h;
+    if (data.w < MAP_SIZE || data.h < MAP_SIZE) {
+      W = Math.max(MAP_SIZE, data.w);
+      H = Math.max(MAP_SIZE, data.h);
+      ox = Math.floor(W / 2) - Math.floor(data.w / 2);
+      oy = Math.floor(H / 2) - Math.floor(data.h / 2);
+      const big = generateMap(W, H, data.seed ?? 1).split('');
+      for (let y = 0; y < data.h; y++) for (let x = 0; x < data.w; x++) big[(y + oy) * W + x + ox] = tiles[y * data.w + x];
+      tiles = big.join('');
+    }
+    const w = new World({ w: W, h: H, seed: data.seed, tiles });
     if (research && Array.isArray(research.done)) w.research = { ...freshResearch(), ...research };
     for (const b of data.buildings || []) {
-      if (!BUILDINGS[b.kind] || w.at(b.x, b.y)) continue;
       const st = b.state || {};
       const ok = (it) => (it && ITEMS[it] ? it : null);
       const buf = {};
       for (const [k, n] of Object.entries(st.buf || {})) if (ITEMS[k] && n > 0) buf[k] = n;
-      w._add({ kind: b.kind, x: b.x, y: b.y, dir: b.dir, state: { item: ok(st.item), p: st.p || 0, buf, out: ok(st.out), next: st.next || 0 } }, true);
+      if (!BUILDINGS[b.kind] || w.at(b.x + ox, b.y + oy)) continue;
+      w._add({ kind: b.kind, x: b.x + ox, y: b.y + oy, dir: b.dir, state: { item: ok(st.item), p: st.p || 0, buf, out: ok(st.out), next: st.next || 0 } }, true);
     }
     return w;
   }

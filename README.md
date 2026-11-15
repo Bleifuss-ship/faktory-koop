@@ -54,7 +54,7 @@ Holz (Wald), Stein, Eisenerz, Kupfererz, Kohle, Wolframerz und Uranerz (grün le
 
 ### Die Karte
 
-Neue Welten sind 160 × 160 Felder groß (vorher 80 × 80) und werden mit Rauschen natürlich erzeugt: große Wälder mit Lichtungen, felsiges Hochland mit Steinfeldern, Seen und ein Fluss, Erzfelder mit unregelmäßigen Rändern. Im **Wasser** gehen nur Förderbänder (als Brücke). Unten rechts zeigt eine **Übersichtskarte** die ganze Welt; antippen oder klicken springt dorthin, Taste M blendet sie aus. Bestehende Welten behalten ihre alte Karte, für die große Karte einfach einen neuen Weltnamen nehmen.
+Neue Welten sind 160 × 160 Felder groß (vorher 80 × 80) und werden mit Rauschen natürlich erzeugt: große Wälder mit Lichtungen, felsiges Hochland mit Steinfeldern, Seen und ein Fluss, Erzfelder mit unregelmäßigen Rändern. Im **Wasser** gehen nur Förderbänder (als Brücke). Unten rechts zeigt eine **Übersichtskarte** die ganze Welt; antippen oder klicken springt dorthin, Taste M blendet sie aus. Bestehende kleinere Welten werden beim Laden automatisch auf 160 × 160 erweitert: Die alte Fläche mit allen Gebäuden bleibt in der Mitte, drumherum entsteht neues Land mit Seen, Fluss und allen Erzen.
 
 ### Produktionsketten
 

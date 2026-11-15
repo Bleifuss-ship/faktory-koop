@@ -83,6 +83,8 @@
         buildToolbar();
         if (!cam.x) { cam.x = world.w / 2; cam.y = world.h / 2; }
         history.replaceState(null, '', '?welt=' + encodeURIComponent(m.room));
+        document.title = 'Fabrik-Koop ' + (m.version || '');
+        toast(`Fabrik-Koop ${m.version || ''} · Welt „${m.room}“ · Karte ${world.w} × ${world.h}`, 4500);
         break;
       case 'tick':
         items = m.items;
@@ -1334,6 +1336,7 @@
   } else {
     // Adressen anzeigen, unter denen andere diesem Spiel beitreten können
     fetch('/info').then((r) => r.json()).then((info) => {
+      if (info.version) $('join').querySelector('h1').dataset.version = 'Version ' + info.version;
       if (info.addresses && info.addresses.length) {
         $('lan-info').innerHTML = 'Mitspieler im selben Netzwerk verbinden sich mit: ' + info.addresses.map((a) => `<b>${escapeHtml(a)}</b>`).join(', ');
       }

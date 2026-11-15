@@ -111,16 +111,29 @@ test('Speichern und Laden, alte Spielstände werden umgewandelt', () => {
   w.place('bohrer', 2, 10, 1);
   w.place('band', 3, 3, 2);
   give(w, 'ziegel', 5);
+  // Kleine Welten werden beim Laden auf 160x160 erweitert, alles rückt um 70 Felder in die Mitte
+  const o = 70;
   const w2 = World.fromJSON(JSON.parse(JSON.stringify(w.toJSON())));
-  assert.strictEqual(w2.at(2, 10).kind, 'bohrer');
-  assert.strictEqual(w2.at(3, 3).dir, 2);
+  assert.strictEqual(w2.w, 160);
+  assert.strictEqual(w2.at(2 + o, 10 + o).kind, 'bohrer');
+  assert.strictEqual(w2.tileAt(2 + o, 10 + o), 'e');
+  assert.strictEqual(w2.at(3 + o, 3 + o).dir, 2);
+  assert.strictEqual(w2.hub.x, 9 + o);
+  assert.strictEqual([...w2.buildings.values()].filter((b) => b.kind === 'zentrale').length, 1);
   assert.strictEqual(w2.research.stock.ziegel, 5);
+  for (const ch of ['~', 'u', 'w']) assert.ok(w2.tiles.includes(ch), ch + ' fehlt in der erweiterten Welt');
+  // Große Welten bleiben beim Speichern/Laden unverändert
+  const big = new World({ seed: 5 });
+  big.place('band', 10, 10, 1);
+  const big2 = World.fromJSON(JSON.parse(JSON.stringify(big.toJSON())));
+  assert.strictEqual(big2.tiles, big.tiles);
+  assert.strictEqual(big2.at(10, 10).dir, 1);
   const old = { w: 20, h: 20, seed: 1, tiles: 'r' + '.'.repeat(399), research: { level: 3, progress: {} }, buildings: [{ kind: 'montage', x: 1, y: 1, dir: 0 }, { kind: 'band', x: 2, y: 2, dir: 0, state: { item: 'rubinerz' } }] };
   const w3 = World.fromJSON(old);
-  assert.strictEqual(w3.tileAt(0, 0), 'e');
+  assert.strictEqual(w3.tileAt(o, o), 'e');
   assert.deepStrictEqual(w3.research.done, ['grundlagen']);
-  assert.ok(!w3.at(1, 1));
-  assert.strictEqual(w3.at(2, 2).state.item, null);
+  assert.ok(!w3.at(1 + o, 1 + o));
+  assert.strictEqual(w3.at(2 + o, 2 + o).state.item, null);
 });
 
 test('Karte: groß, mit Wasser, Wald und allen Erzen, Zentrale frei', () => {

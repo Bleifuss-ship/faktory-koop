@@ -7,6 +7,7 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
+const VERSION = require('../package.json').version;
 const { World, DEFS } = require('./game');
 
 const TICK_MS = 100; // 10 Ticks pro Sekunde
@@ -42,14 +43,15 @@ function startServer(opts = {}) {
     const url = new URL(req.url, 'http://x');
     if (url.pathname === '/info') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-      res.end(JSON.stringify({ game: 'fabrik-koop', addresses: lanAddresses(server.address().port) }));
+      res.end(JSON.stringify({ game: 'fabrik-koop', version: VERSION, addresses: lanAddresses(server.address().port) }));
       return;
     }
     const file = path.normalize(path.join(PUBLIC_DIR, url.pathname === '/' ? 'index.html' : url.pathname));
     if (!file.startsWith(PUBLIC_DIR)) { res.writeHead(403); res.end(); return; }
     fs.readFile(file, (err, data) => {
       if (err) { res.writeHead(404); res.end('Nicht gefunden'); return; }
-      res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+      // Nie zwischenspeichern, damit nach einem Update sofort der neue Stand geladen wird
+      res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
       res.end(data);
     });
   });
@@ -121,7 +123,7 @@ function startServer(opts = {}) {
           cursor: null,
         };
         room.players.set(player.id, player);
-        send(ws, { t: 'init', you: player.id, room: room.name, defs: DEFS, world: room.world.fullState(), players: playerList(room) });
+        send(ws, { t: 'init', you: player.id, room: room.name, version: VERSION, defs: DEFS, world: room.world.fullState(), players: playerList(room) });
         broadcast(room, { t: 'players', players: playerList(room) });
         return;
       }
