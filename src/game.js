@@ -198,6 +198,29 @@ const TECHS = [
   { id: 'raumfahrt', name: 'Raumfahrt', req: ['helfer', 'rechenzentrum', 'energie'], cost: { solarsegel: 20, computer: 10 }, bonus: { maschine: 1.2 }, col: 7, row: 3, text: 'Bereitet den Start der Raumsonde vor. Maschinen +20 %.' },
   { id: 'ziel', name: 'Raumsonden-Start', req: ['raumfahrt'], cost: { raumsonde: 10 }, win: true, col: 8, row: 3, text: 'Das große Ziel: 10 Raumsonden. Danach ist die Fabrik fertig!' },
 ];
+// --- Geld ---
+// Baukosten in Talern. Abreißen gibt den vollen Preis zurück.
+const COSTS = {
+  band: 2, verteiler: 20, bohrer: 25, saege: 40, schmelze: 60, presse: 120, brecher: 150,
+  hochofen: 300, werkbank: 400, chemiewerk: 800, fabrikator: 1500, zentrifuge: 2500, montagehalle: 5000,
+};
+const START_MONEY = 300;
+// Verkaufswert an der Zentrale: Rohstoffe haben einen Grundwert, jedes Produkt ist
+// 30 % mehr wert als seine Zutaten zusammen, plus etwas für die Arbeitszeit.
+const RAW_VALUE = { holz: 1, stein: 1, eisenerz: 2, kupfererz: 2, kohle: 2, sand: 2, bauxit: 3, schwefel: 3, wolframerz: 5, golderz: 6, uranerz: 8 };
+const VALUES = (() => {
+  const v = { ...RAW_VALUE };
+  const all = Object.values(RECIPES).flat();
+  for (let pass = 0; pass < 20; pass++) {
+    for (const r of all) {
+      if (v[r.out] || !Object.keys(r.in).every((i) => v[i])) continue;
+      const sum = Object.entries(r.in).reduce((a, [i, n]) => a + v[i] * n, 0);
+      v[r.out] = Math.round(sum * 1.3 + r.time / 10);
+    }
+  }
+  return v;
+})();
+
 const TECH_BY_ID = Object.fromEntries(TECHS.map((t) => [t.id, t]));
 
 const MACHINES = Object.keys(RECIPES);
@@ -389,6 +412,7 @@ class World {
     this.nextId = 1;
     this.tick = 0;
     this.research = freshResearch();
+    this.money = opts.money ?? START_MONEY;
     this.changes = []; // Gebäudeänderungen seit dem letzten Senden
     const hx = Math.floor(this.w / 2) - 1;
     const hy = Math.floor(this.h / 2) - 1;
@@ -472,6 +496,9 @@ class World {
     }
     if (kind === 'bohrer' && !DEPOSITS[this.tileAt(x, y)]) return 'Bohrer nur auf Vorkommen';
     if (kind !== 'band' && this.tileAt(x, y) === WATER) return 'Im Wasser gehen nur Förderbänder';
+    const cost = COSTS[kind] || 0;
+    if (this.money < cost) return `Nicht genug Geld: ${BUILDINGS[kind].name} kostet ${cost} Taler`;
+    this.money -= cost;
     this._add({ kind, x, y, dir });
     return null;
   }
@@ -479,6 +506,7 @@ class World {
   remove(x, y) {
     const b = this.at(x, y);
     if (!b || b.kind === 'zentrale') return false;
+    this.money += COSTS[b.kind] || 0;
     this.grid.delete(this.key(x, y));
     this.buildings.delete(b.id);
     this.changes.push({ op: 'del', id: b.id });
@@ -518,6 +546,7 @@ class World {
     const r = this.research;
     r.delivered[item] = (r.delivered[item] || 0) + 1;
     r.stock[item] = (r.stock[item] || 0) + 1;
+    this.money += VALUES[item] || 0;
   }
 
   // Versucht, ein Item aus Gebäude b in Richtung d (Standard: vorne) zu schieben.
@@ -620,13 +649,14 @@ class World {
       research: this.research,
       unlocked: this.unlocked(),
       beltSpeed: BASE_BELT_SPEED * this.bonus('band'),
+      money: this.money,
     };
   }
 
   toJSON() {
     return {
       version: SAVE_VERSION,
-      w: this.w, h: this.h, seed: this.seed, tiles: this.tiles, research: this.research,
+      w: this.w, h: this.h, seed: this.seed, tiles: this.tiles, research: this.research, money: this.money,
       buildings: [...this.buildings.values()].filter((b) => b.kind !== 'zentrale').map((b) => ({
         kind: b.kind, x: b.x, y: b.y, dir: b.dir,
         state: { item: b.state.item || null, p: b.state.p || 0, buf: b.state.buf, out: b.state.out || null, next: b.state.next || 0 },
@@ -654,7 +684,8 @@ class World {
       for (let y = 0; y < data.h; y++) for (let x = 0; x < data.w; x++) big[(y + oy) * W + x + ox] = tiles[y * data.w + x];
       tiles = big.join('');
     }
-    const w = new World({ w: W, h: H, seed: data.seed, tiles });
+    // Alte Spielstände ohne Geld bekommen ein Startkapital
+    const w = new World({ w: W, h: H, seed: data.seed, tiles, money: typeof data.money === 'number' ? data.money : 1000 });
     if (research && Array.isArray(research.done)) w.research = { ...freshResearch(), ...research };
     for (const b of data.buildings || []) {
       const st = b.state || {};
@@ -668,6 +699,6 @@ class World {
   }
 }
 
-const DEFS = { DIRS, DEPOSITS, WATER, ITEMS, BUILDINGS, RECIPES, TECHS, MACHINES };
+const DEFS = { COSTS, VALUES, DIRS, DEPOSITS, WATER, ITEMS, BUILDINGS, RECIPES, TECHS, MACHINES };
 
 module.exports = { World, DEFS, generateMap, TECHS };

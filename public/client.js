@@ -91,6 +91,7 @@
         busy = new Map();
         for (let i = 0; i < m.busy.length; i += 2) busy.set(m.busy[i], m.busy[i + 1]);
         lastTickAt = performance.now();
+        if (typeof m.money === 'number') setMoney(m.money);
         if (m.changes) for (const c of m.changes) applyChange(c);
         if (m.research) {
           const before = unlocked.join();
@@ -127,10 +128,40 @@
     research = w.research;
     unlocked = w.unlocked;
     beltSpeed = w.beltSpeed;
+    setMoney(w.money || 0, true);
     if (r3d) r3d.setWorld(world);
     else renderGround();
     renderResearch();
     renderMinimapBase();
+  }
+
+  // ---------- Geld ----------
+  let money = 0;
+  let moneyGain = 0, moneyGainT = 0;
+  const fmt = (n) => Math.floor(n).toLocaleString('de-DE');
+  function setMoney(v, silent) {
+    const diff = v - money;
+    const changed = v !== money;
+    money = v;
+    if (!changed) return;
+    $('money-val').textContent = fmt(v);
+    if (!silent && diff > 0) {
+      // Einnahmen kurz sammeln und als „+N“ zeigen
+      const now = performance.now();
+      moneyGain = now - moneyGainT < 1500 ? moneyGain + diff : diff;
+      moneyGainT = now;
+      const d = $('money-delta');
+      d.textContent = '+' + fmt(moneyGain);
+      d.classList.remove('pop'); void d.offsetWidth; d.classList.add('pop');
+    }
+    updateAffordable();
+  }
+  function updateAffordable() {
+    if (!defs) return;
+    document.querySelectorAll('#toolbar button[data-tool]').forEach((b) => {
+      const c = defs.COSTS && defs.COSTS[b.dataset.tool];
+      b.classList.toggle('poor', c != null && money < c);
+    });
   }
 
   // ---------- Übersichtskarte ----------
@@ -209,6 +240,45 @@
     for (let y = 0; y < b.size; y++) for (let x = 0; x < b.size; x++) world.grid.delete((b.x + x) + ',' + (b.y + y));
     world.buildings.delete(id);
     world.version++;
+  }
+
+  // ---------- Bandkurven ----------
+  // Ein Band, das nicht von hinten, aber genau von einer Seite beliefert wird, ist eine Kurve:
+  // +1 = Zulauf von rechts, -1 = Zulauf von links (relativ zur Laufrichtung), 0 = gerade.
+  const curveCache = { v: -1, m: new Map() };
+  function beltCurve(b) {
+    if (curveCache.v !== world.version) { curveCache.v = world.version; curveCache.m.clear(); }
+    let c = curveCache.m.get(b.id);
+    if (c !== undefined) return c;
+    c = 0;
+    const feeds = (ox, oy) => {
+      const n = world.grid.get((b.x + ox) + ',' + (b.y + oy));
+      if (!n || n === b || n.size > 1) return false;
+      const [fx, fy] = DIRS[n.dir];
+      return n.x + fx === b.x && n.y + fy === b.y;
+    };
+    const [dx, dy] = DIRS[b.dir];
+    const [rx, ry] = DIRS[(b.dir + 1) % 4];
+    if (!feeds(-dx, -dy)) {
+      const r = feeds(rx, ry), l = feeds(-rx, -ry);
+      if (r && !l) c = 1; else if (l && !r) c = -1;
+    }
+    curveCache.m.set(b.id, c);
+    return c;
+  }
+  // Punkt und Laufrichtung (Winkel) auf einem Band bei Fortschritt p (0..1), in Weltkoordinaten
+  function beltPoint(b, p) {
+    const c = b.kind === 'band' ? beltCurve(b) : 0;
+    const [fx, fy] = DIRS[b.dir];
+    const [rx, ry] = DIRS[(b.dir + 1) % 4];
+    let lx = p - 0.5, lz = 0, head = 0;
+    if (c) {
+      const a = Math.PI + c * p * Math.PI / 2;
+      lx = 0.5 + 0.5 * Math.cos(a);
+      lz = c * 0.5 + 0.5 * Math.sin(a);
+      head = Math.atan2(c * Math.cos(a), -c * Math.sin(a));
+    }
+    return [b.x + 0.5 + lx * fx + lz * rx, b.y + 0.5 + lx * fy + lz * ry, b.dir * Math.PI / 2 + head];
   }
 
   function applyChange(c) {
@@ -459,7 +529,35 @@
     const t = performance.now() / 1000;
     c.save();
     if (opts.alpha) c.globalAlpha = opts.alpha;
-    if (kind === 'band') {
+    if (kind === 'band' && opts.curve) {
+      // Kurve: Viertelkreis um die innere Ecke
+      const k = opts.curve;
+      c.save();
+      c.translate(x + s / 2, y + s / 2);
+      c.rotate(d * Math.PI / 2);
+      const a0 = Math.PI, a1 = Math.PI + k * Math.PI / 2;
+      const arc = (w, col) => { c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'butt'; c.beginPath(); c.arc(s / 2, k * s / 2, s / 2, a0, a1, k < 0); c.stroke(); };
+      arc(s * 0.76, '#c7cbd6');
+      arc(s * 0.56, '#596173');
+      c.strokeStyle = '#8791a8';
+      c.lineWidth = Math.max(1.2, s * 0.07);
+      c.lineCap = 'round';
+      c.lineJoin = 'round';
+      const off = (t * beltSpeed * 10 / 3) % (1 / 3);
+      for (let i = 0; i < 3; i++) {
+        const p = i / 3 + off;
+        const a = Math.PI + k * p * Math.PI / 2;
+        const px = s / 2 + (s / 2) * Math.cos(a), py = k * s / 2 + (s / 2) * Math.sin(a);
+        c.save();
+        c.translate(px, py);
+        c.rotate(Math.atan2(k * Math.cos(a), -k * Math.sin(a)));
+        c.beginPath();
+        c.moveTo(-s * 0.09, -s * 0.15); c.lineTo(s * 0.03, 0); c.lineTo(-s * 0.09, s * 0.15);
+        c.stroke();
+        c.restore();
+      }
+      c.restore();
+    } else if (kind === 'band') {
       const m = s * 0.04;
       c.save();
       c.translate(x + s / 2, y + s / 2);
@@ -816,7 +914,7 @@
       if (!world.w) return;
       updateKeys();
       drawMinimap();
-      r3d.render({ world, items, busy, beltSpeed, lastTickAt, hover, tool, dir, cursors, players, defs, canPlace });
+      r3d.render({ world, items, busy, beltSpeed, beltCurve, beltPoint, lastTickAt, hover, tool, dir, cursors, players, defs, canPlace });
       return;
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -884,7 +982,7 @@
     for (const b of visible) {
       if (b.kind !== 'band') continue;
       const [sx, sy] = toScreen(b.x, b.y);
-      drawBuilding(ctx, b.kind, sx, sy, s, b.dir);
+      drawBuilding(ctx, b.kind, sx, sy, s, b.dir, { curve: beltCurve(b) });
     }
 
     // Items auf Bändern (zwischen Ticks interpoliert)
@@ -894,10 +992,9 @@
       const y = items[i + 1];
       if (x < x0 - 1 || y < y0 - 1 || x > x1 || y > y1) continue;
       const b = world.grid.get(x + ',' + y);
-      const d = b ? b.dir : 0;
       const p = Math.min(1, items[i + 3] + (items[i + 3] < 1 ? beltSpeed * dt : 0));
-      const [dx, dy] = DIRS[d];
-      const [sx, sy] = toScreen(x + 0.5 + dx * (p - 0.5), y + 0.5 + dy * (p - 0.5));
+      const [wx, wy] = b ? beltPoint(b, p) : [x + 0.5, y + 0.5];
+      const [sx, sy] = toScreen(wx, wy);
       ctx.fillStyle = 'rgba(20,30,40,0.28)';
       ctx.beginPath(); ctx.ellipse(sx + s * 0.03, sy + s * 0.12, s * 0.2, s * 0.08, 0, 0, Math.PI * 2); ctx.fill();
       drawItem(ctx, items[i + 2], sx, sy, s * 0.5);
@@ -965,6 +1062,7 @@
     const tile = world.tiles[y * world.w + x];
     if (kind === 'bohrer' && !(defs && defs.DEPOSITS[tile])) return false;
     if (kind !== 'band' && tile === '~') return false;
+    if (!b && defs && defs.COSTS && money < (defs.COSTS[kind] || 0)) return false;
     return true;
   }
 
@@ -1002,6 +1100,14 @@
         k.className = 'k';
         k.textContent = def.key;
         btn.appendChild(k);
+        const cost = defs.COSTS ? defs.COSTS[t] : 0;
+        if (cost) {
+          const pr = document.createElement('span');
+          pr.className = 'price';
+          pr.textContent = fmt(cost);
+          btn.appendChild(pr);
+          btn.title += ` · kostet ${fmt(cost)} Taler`;
+        }
         btn.disabled = !unlocked.includes(t);
         if (btn.disabled) btn.title = `${def.name}: noch nicht erforscht`;
       }
@@ -1026,6 +1132,7 @@
       bar.appendChild(camBtn);
     }
     setTool(unlocked.includes(tool) || tool === 'hand' || tool === 'delete' ? tool : 'hand');
+    updateAffordable();
   }
 
   function setTool(t) {
@@ -1047,13 +1154,13 @@
     let text = '';
     if (defs && defs.BUILDINGS[tool]) {
       const d = defs.BUILDINGS[tool];
-      text = `${d.name}: ${d.desc}`;
+      text = `${d.name} (${fmt((defs.COSTS && defs.COSTS[tool]) || 0)} Taler): ${d.desc}`;
       const rec = defs.RECIPES[tool];
       if (rec) text += '  ' + rec.map((r) => Object.keys(r.in).map((k) => defs.ITEMS[k].name).join(' + ') + ' → ' + defs.ITEMS[r.out].name).join(' · ');
     } else if (hover) {
       const b = world.grid.get(hover.x + ',' + hover.y);
       const t = world.tiles[hover.y * world.w + hover.x];
-      if (b && b.kind === 'zentrale') text = 'Zentrale: Hierhin liefern, um zu forschen.';
+      if (b && b.kind === 'zentrale') text = 'Zentrale: Hierhin liefern. Jede Lieferung bringt Taler und füllt das Lager für die Forschung.';
       else if (b) text = defs.BUILDINGS[b.kind].name + (busy.get(b.id) ? ' (stellt ' + defs.ITEMS[busy.get(b.id)].name + ' her)' : '');
       else if (defs && defs.DEPOSITS[t]) text = 'Vorkommen: ' + defs.ITEMS[defs.DEPOSITS[t]].name;
       else if (t === '~') text = 'Wasser: Hier gehen nur Förderbänder (als Brücke).';
