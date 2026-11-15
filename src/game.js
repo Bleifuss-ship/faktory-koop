@@ -20,6 +20,10 @@ const DEPOSITS = {
   c: 'kohle',
   w: 'wolframerz',
   u: 'uranerz',
+  q: 'sand',
+  b: 'bauxit',
+  s: 'schwefel',
+  g: 'golderz',
 };
 // Wasser ('~'): Seen und Flüsse. Dort gehen nur Förderbänder (als Brücke).
 const WATER = '~';
@@ -33,26 +37,56 @@ const ITEMS = {
   kohle: { name: 'Kohle', color: '#3a3d46', shape: 'rock' },
   wolframerz: { name: 'Wolframerz', color: '#8a7fb0', shape: 'crystal' },
   uranerz: { name: 'Uranerz', color: '#7ad94a', shape: 'crystal' },
-  // Stufe 1
+  sand: { name: 'Quarzsand', color: '#ecd89a', shape: 'dust' },
+  bauxit: { name: 'Bauxit', color: '#c0603a', shape: 'rock' },
+  schwefel: { name: 'Schwefel', color: '#f2dc3a', shape: 'crystal' },
+  golderz: { name: 'Golderz', color: '#e8c040', shape: 'rock' },
+  // Stufe 1: Sägewerk, Schmelzofen, Brecher
   bretter: { name: 'Bretter', color: '#d9a866', shape: 'plank' },
   ziegel: { name: 'Ziegel', color: '#d0624a', shape: 'brick' },
   eisenbarren: { name: 'Eisenbarren', color: '#c4cad4', shape: 'bar' },
   kupferbarren: { name: 'Kupferbarren', color: '#f09a5a', shape: 'bar' },
+  glas: { name: 'Glasscheibe', color: '#a8e4f8', shape: 'pane' },
+  goldbarren: { name: 'Goldbarren', color: '#ffd24a', shape: 'bar' },
+  kies: { name: 'Kies', color: '#b8b4aa', shape: 'dust' },
+  tonerde: { name: 'Tonerde', color: '#e8b8a0', shape: 'dust' },
+  schwefelpulver: { name: 'Schwefelpulver', color: '#fff07a', shape: 'dust' },
   // Stufe 2
   zahnrad: { name: 'Zahnrad', color: '#aab4c4', shape: 'gear' },
   kupferdraht: { name: 'Kupferdraht', color: '#f0a060', shape: 'coil' },
+  golddraht: { name: 'Golddraht', color: '#ffd86a', shape: 'coil' },
   stahl: { name: 'Stahlträger', color: '#6f7d92', shape: 'beam' },
   wolframbarren: { name: 'Wolframbarren', color: '#9a8cd0', shape: 'bar' },
+  aluminium: { name: 'Aluminiumbarren', color: '#e4ecf4', shape: 'bar' },
+  beton: { name: 'Betonblock', color: '#bcbcb4', shape: 'box' },
+  stahlbeton: { name: 'Stahlbeton', color: '#8a9098', shape: 'brick' },
+  saeure: { name: 'Säurekanister', color: '#c8f05a', shape: 'cell' },
+  uranpellet: { name: 'Uranpellet', color: '#9cf06a', shape: 'pellet' },
   // Stufe 3
   motor: { name: 'Motor', color: '#ffb84a', shape: 'box' },
   platine: { name: 'Platine', color: '#3fae6a', shape: 'board' },
   stahlrahmen: { name: 'Stahlrahmen', color: '#5a6a82', shape: 'frame' },
   bohrkopf: { name: 'Bohrkopf', color: '#b4a6ee', shape: 'drill' },
-  uranpellet: { name: 'Uranpellet', color: '#9cf06a', shape: 'pellet' },
-  energiezelle: { name: 'Energiezelle', color: '#4ad9a0', shape: 'cell' },
+  gluehbirne: { name: 'Glühbirne', color: '#fff2a0', shape: 'bulb' },
+  alublech: { name: 'Alublech', color: '#d4dce8', shape: 'pane' },
+  kunstharz: { name: 'Kunstharz', color: '#f07ab4', shape: 'pellet' },
+  batterie: { name: 'Batterie', color: '#5a8af0', shape: 'cell' },
   // Stufe 4
+  steuerchip: { name: 'Steuerchip', color: '#2a8a5a', shape: 'board' },
+  energiezelle: { name: 'Energiezelle', color: '#4ad9a0', shape: 'cell' },
+  isolierkabel: { name: 'Isolierkabel', color: '#e05a7a', shape: 'coil' },
+  leichtrahmen: { name: 'Leichtrahmen', color: '#b8c8dc', shape: 'frame' },
+  solarzelle: { name: 'Solarzelle', color: '#3a5ad0', shape: 'board' },
+  // Stufe 5
   roboterarm: { name: 'Roboterarm', color: '#f06a55', shape: 'arm' },
+  turbine: { name: 'Turbine', color: '#8ab4d8', shape: 'gear' },
+  // Stufe 6: Montagehalle
   helferbot: { name: 'Helferbot', color: '#b48cff', shape: 'bot' },
+  generator: { name: 'Generator', color: '#f0c040', shape: 'box' },
+  computer: { name: 'Computer', color: '#4a5a7a', shape: 'box' },
+  solarsegel: { name: 'Solarsegel', color: '#4a6ae0', shape: 'pane' },
+  // Stufe 7: das große Ziel
+  raumsonde: { name: 'Raumsonde', color: '#ffffff', shape: 'probe' },
 };
 
 const RECIPES = {
@@ -63,62 +97,106 @@ const RECIPES = {
     { in: { eisenerz: 1 }, out: 'eisenbarren', time: 20 },
     { in: { kupfererz: 1 }, out: 'kupferbarren', time: 20 },
     { in: { stein: 1 }, out: 'ziegel', time: 20 },
+    { in: { sand: 1 }, out: 'glas', time: 20 },
+    { in: { golderz: 1 }, out: 'goldbarren', time: 25 },
+  ],
+  brecher: [
+    { in: { stein: 1 }, out: 'kies', time: 15 },
+    { in: { bauxit: 1 }, out: 'tonerde', time: 20 },
+    { in: { schwefel: 1 }, out: 'schwefelpulver', time: 15 },
   ],
   presse: [
     { in: { eisenbarren: 1 }, out: 'zahnrad', time: 15 },
     { in: { kupferbarren: 1 }, out: 'kupferdraht', time: 15 },
+    { in: { goldbarren: 1 }, out: 'golddraht', time: 20 },
+    { in: { aluminium: 1 }, out: 'alublech', time: 20 },
   ],
   hochofen: [
     { in: { eisenbarren: 1, kohle: 1 }, out: 'stahl', time: 30 },
     { in: { wolframerz: 1, kohle: 1 }, out: 'wolframbarren', time: 35 },
+    { in: { tonerde: 1, kohle: 1 }, out: 'aluminium', time: 35 },
   ],
   werkbank: [
     { in: { zahnrad: 1, kupferdraht: 1 }, out: 'motor', time: 30 },
     { in: { kupferdraht: 1, bretter: 1 }, out: 'platine', time: 25 },
+    { in: { glas: 1, kupferdraht: 1 }, out: 'gluehbirne', time: 25 },
     { in: { stahl: 1, ziegel: 1 }, out: 'stahlrahmen', time: 30 },
     { in: { wolframbarren: 1, stahl: 1 }, out: 'bohrkopf', time: 35 },
     { in: { uranpellet: 1, stahlrahmen: 1 }, out: 'energiezelle', time: 40 },
+    { in: { alublech: 1, stahlrahmen: 1 }, out: 'leichtrahmen', time: 35 },
+  ],
+  chemiewerk: [
+    { in: { kies: 1, ziegel: 1 }, out: 'beton', time: 25 },
+    { in: { beton: 1, stahl: 1 }, out: 'stahlbeton', time: 30 },
+    { in: { schwefelpulver: 1, kohle: 1 }, out: 'saeure', time: 30 },
+    { in: { saeure: 1, bretter: 1 }, out: 'kunstharz', time: 30 },
+    { in: { saeure: 1, kupferbarren: 1 }, out: 'batterie', time: 35 },
+    { in: { kunstharz: 1, kupferdraht: 1 }, out: 'isolierkabel', time: 30 },
   ],
   fabrikator: [
-    { in: { motor: 1, platine: 1 }, out: 'roboterarm', time: 40 },
-    { in: { roboterarm: 1, bohrkopf: 1 }, out: 'helferbot', time: 50 },
+    { in: { platine: 1, golddraht: 2 }, out: 'steuerchip', time: 40 },
+    { in: { glas: 1, golddraht: 1 }, out: 'solarzelle', time: 40 },
+    { in: { motor: 1, steuerchip: 1 }, out: 'roboterarm', time: 45 },
+    { in: { alublech: 2, motor: 1 }, out: 'turbine', time: 45 },
+  ],
+  zentrifuge: [
+    { in: { uranerz: 1 }, out: 'uranpellet', time: 40 },
+  ],
+  montagehalle: [
+    { in: { roboterarm: 1, bohrkopf: 1, batterie: 1 }, out: 'helferbot', time: 60 },
+    { in: { turbine: 1, isolierkabel: 2, energiezelle: 1 }, out: 'generator', time: 60 },
+    { in: { steuerchip: 2, kunstharz: 1, gluehbirne: 1 }, out: 'computer', time: 60 },
+    { in: { solarzelle: 2, leichtrahmen: 1, isolierkabel: 1 }, out: 'solarsegel', time: 60 },
+    { in: { computer: 1, generator: 1, solarsegel: 2 }, out: 'raumsonde', time: 90 },
   ],
 };
-
-RECIPES.zentrifuge = [
-  { in: { uranerz: 1 }, out: 'uranpellet', time: 40 },
-];
 
 const BUILDINGS = {
   band: { name: 'Förderband', key: '1', desc: 'Transportiert Gegenstände in Pfeilrichtung.' },
   bohrer: { name: 'Bohrer', key: '2', desc: 'Auf ein Vorkommen stellen (auch Wald). Gibt Rohstoffe nach vorne aus.' },
   saege: { name: 'Sägewerk', key: '3', desc: 'Holz → Bretter.' },
-  schmelze: { name: 'Schmelzofen', key: '4', desc: 'Erz/Stein → Barren/Ziegel.' },
+  schmelze: { name: 'Schmelzofen', key: '4', desc: 'Erz, Stein, Sand → Barren, Ziegel, Glas.' },
   verteiler: { name: 'Verteiler', key: '5', desc: 'Verteilt Gegenstände abwechselnd nach vorne, links und rechts.' },
-  presse: { name: 'Presse', key: '6', desc: 'Barren → Zahnrad/Draht.' },
-  hochofen: { name: 'Hochofen', key: '7', desc: 'Barren oder Erz + Kohle → Stahl/Wolfram.' },
-  werkbank: { name: 'Werkbank', key: '8', desc: 'Zwei Zutaten → Bauteil.' },
-  fabrikator: { name: 'Fabrikator', key: '9', desc: 'Bauteile → Roboterarm und Helferbot.' },
-  zentrifuge: { name: 'Zentrifuge', key: '0', desc: 'Uranerz → Uranpellet.' },
+  presse: { name: 'Presse', key: '6', desc: 'Barren → Zahnrad, Draht, Blech.' },
+  brecher: { name: 'Steinbrecher', key: '7', desc: 'Zermahlt Stein, Bauxit und Schwefel.' },
+  hochofen: { name: 'Hochofen', key: '8', desc: 'Barren oder Erz + Kohle → Stahl, Wolfram, Aluminium.' },
+  werkbank: { name: 'Werkbank', key: '9', desc: 'Zwei Zutaten → Bauteil.' },
+  chemiewerk: { name: 'Chemiewerk', key: '0', desc: 'Beton, Säure, Kunstharz, Batterien und Kabel.' },
+  fabrikator: { name: 'Fabrikator', key: 'v', desc: 'Elektronik und Maschinenteile.' },
+  zentrifuge: { name: 'Zentrifuge', key: 'b', desc: 'Uranerz → Uranpellet.' },
+  montagehalle: { name: 'Montagehalle', key: 'n', desc: 'Drei Bauteile → große Baugruppen.' },
 };
 
 // Techbaum: Jede Technik braucht ihre Vorgänger und kostet Gegenstände aus dem Lager der Zentrale.
 // col/row bestimmen nur die Position in der Anzeige.
 const TECHS = [
-  { id: 'grundlagen', name: 'Grundlagen', req: [], cost: {}, unlock: ['band', 'bohrer', 'saege', 'schmelze'], col: 0, row: 1, text: 'Bänder, Bohrer, Sägewerk und Schmelzofen.' },
-  { id: 'logistik', name: 'Logistik', req: ['grundlagen'], cost: { bretter: 20, ziegel: 10 }, unlock: ['verteiler'], col: 1, row: 0, text: 'Schaltet den Verteiler frei.' },
-  { id: 'metallbau', name: 'Metallbau', req: ['grundlagen'], cost: { eisenbarren: 20, bretter: 10 }, unlock: ['presse'], col: 1, row: 2, text: 'Schaltet die Presse frei.' },
+  { id: 'grundlagen', name: 'Grundlagen', req: [], cost: {}, unlock: ['band', 'bohrer', 'saege', 'schmelze'], col: 0, row: 3, text: 'Bänder, Bohrer, Sägewerk und Schmelzofen.' },
+  { id: 'logistik', name: 'Logistik', req: ['grundlagen'], cost: { bretter: 20, ziegel: 10 }, unlock: ['verteiler'], col: 1, row: 1, text: 'Schaltet den Verteiler frei.' },
+  { id: 'metallbau', name: 'Metallbau', req: ['grundlagen'], cost: { eisenbarren: 20, bretter: 10 }, unlock: ['presse'], col: 1, row: 3, text: 'Schaltet die Presse frei.' },
+  { id: 'steinbruch', name: 'Steinbruch', req: ['grundlagen'], cost: { ziegel: 20, eisenbarren: 10 }, unlock: ['brecher'], col: 1, row: 5, text: 'Schaltet den Steinbrecher frei (Kies, Tonerde, Schwefelpulver).' },
   { id: 'baender1', name: 'Schnelle Bänder', req: ['logistik'], cost: { eisenbarren: 30, ziegel: 20 }, bonus: { band: 1.5 }, col: 2, row: 0, text: 'Bänder laufen 50 % schneller.' },
-  { id: 'feuer', name: 'Hochofen', req: ['metallbau'], cost: { zahnrad: 20, ziegel: 30 }, unlock: ['hochofen'], col: 2, row: 1, text: 'Schaltet den Hochofen frei (braucht Kohle).' },
+  { id: 'feuer', name: 'Hochofen', req: ['metallbau'], cost: { zahnrad: 20, ziegel: 30 }, unlock: ['hochofen'], col: 2, row: 2, text: 'Schaltet den Hochofen frei (braucht Kohle).' },
   { id: 'handwerk', name: 'Werkbank', req: ['metallbau'], cost: { zahnrad: 20, kupferdraht: 20 }, unlock: ['werkbank'], col: 2, row: 3, text: 'Schaltet die Werkbank frei.' },
-  { id: 'bohrer1', name: 'Scharfe Bohrer', req: ['handwerk'], cost: { motor: 15 }, bonus: { bohrer: 1.5 }, col: 3, row: 3, text: 'Bohrer arbeiten 50 % schneller.' },
-  { id: 'baender2', name: 'Turbobänder', req: ['baender1', 'handwerk'], cost: { motor: 20, stahlrahmen: 10 }, bonus: { band: 1.5 }, col: 3, row: 0, text: 'Bänder laufen noch einmal 50 % schneller.' },
-  { id: 'fabrik', name: 'Fabrikator', req: ['feuer', 'handwerk'], cost: { platine: 20, stahl: 20 }, unlock: ['fabrikator'], col: 3, row: 2, text: 'Schaltet den Fabrikator frei.' },
-  { id: 'bohrer2', name: 'Wolframbohrer', req: ['bohrer1', 'feuer'], cost: { bohrkopf: 10 }, bonus: { bohrer: 1.5 }, col: 4, row: 3, text: 'Bohrer arbeiten noch einmal 50 % schneller.' },
-  { id: 'takt', name: 'Taktstraße', req: ['fabrik'], cost: { roboterarm: 10 }, bonus: { maschine: 1.5 }, col: 4, row: 1, text: 'Alle Maschinen arbeiten 50 % schneller.' },
-  { id: 'kernkraft', name: 'Urantechnik', req: ['bohrer2'], cost: { wolframbarren: 20, platine: 15 }, unlock: ['zentrifuge'], col: 5, row: 3, text: 'Schaltet die Zentrifuge frei (für Uranerz).' },
-  { id: 'reaktor', name: 'Kleinreaktor', req: ['kernkraft'], cost: { energiezelle: 15 }, bonus: { bohrer: 1.5, maschine: 1.25 }, col: 6, row: 4, text: 'Bohrer +50 %, Maschinen +25 %.' },
-  { id: 'ziel', name: 'Helferbot-Programm', req: ['takt', 'kernkraft'], cost: { helferbot: 10, energiezelle: 10 }, win: true, col: 6, row: 2, text: 'Das große Ziel: 10 Helferbots mit Energiezellen. Danach ist die Fabrik fertig!' },
+  { id: 'bohrer1', name: 'Scharfe Bohrer', req: ['steinbruch', 'metallbau'], cost: { kies: 30, zahnrad: 20 }, bonus: { bohrer: 1.25 }, col: 2, row: 5, text: 'Bohrer arbeiten 25 % schneller.' },
+  { id: 'baender2', name: 'Turbobänder', req: ['baender1', 'handwerk'], cost: { motor: 20, platine: 15 }, bonus: { band: 1.5 }, col: 3, row: 0, text: 'Bänder laufen noch einmal 50 % schneller.' },
+  { id: 'elektrik', name: 'Elektrik', req: ['handwerk'], cost: { platine: 25, gluehbirne: 20 }, bonus: { maschine: 1.2 }, col: 3, row: 1, text: 'Alle Maschinen arbeiten 20 % schneller.' },
+  { id: 'fabrik', name: 'Fabrikator', req: ['feuer', 'handwerk'], cost: { platine: 20, stahl: 20 }, unlock: ['fabrikator'], col: 3, row: 3, text: 'Schaltet den Fabrikator frei.' },
+  { id: 'chemie', name: 'Chemie', req: ['steinbruch', 'feuer'], cost: { stahl: 20, kies: 30, glas: 20 }, unlock: ['chemiewerk'], col: 3, row: 5, text: 'Schaltet das Chemiewerk frei.' },
+  { id: 'solartechnik', name: 'Solartechnik', req: ['elektrik', 'fabrik'], cost: { solarzelle: 20, glas: 40 }, bonus: { maschine: 1.15 }, col: 4, row: 1, text: 'Maschinen arbeiten 15 % schneller.' },
+  { id: 'automatik', name: 'Steuerungstechnik', req: ['fabrik'], cost: { steuerchip: 15, motor: 20 }, bonus: { maschine: 1.25 }, col: 4, row: 2, text: 'Maschinen arbeiten 25 % schneller.' },
+  { id: 'bohrer2', name: 'Wolframbohrer', req: ['bohrer1', 'fabrik'], cost: { bohrkopf: 10, kies: 40 }, bonus: { bohrer: 1.4 }, col: 4, row: 4, text: 'Bohrer arbeiten 40 % schneller.' },
+  { id: 'kunststoff', name: 'Kunststoffe', req: ['chemie'], cost: { kunstharz: 25, batterie: 10 }, bonus: { bohrer: 1.2 }, col: 4, row: 5, text: 'Bohrer arbeiten 20 % schneller.' },
+  { id: 'leichtbau', name: 'Leichtbau', req: ['fabrik', 'chemie'], cost: { alublech: 30, stahlrahmen: 15 }, bonus: { band: 1.25 }, col: 4, row: 3, text: 'Bänder laufen 25 % schneller.' },
+  { id: 'baender3', name: 'Magnetbänder', req: ['baender2', 'leichtbau'], cost: { turbine: 10, alublech: 40 }, bonus: { band: 1.5 }, col: 5, row: 0, text: 'Bänder laufen noch einmal 50 % schneller.' },
+  { id: 'takt', name: 'Taktstraße', req: ['automatik'], cost: { roboterarm: 20, steuerchip: 20 }, bonus: { maschine: 1.5 }, col: 5, row: 2, text: 'Alle Maschinen arbeiten 50 % schneller.' },
+  { id: 'montage', name: 'Montagehalle', req: ['automatik', 'kunststoff'], cost: { roboterarm: 15, isolierkabel: 20, stahlbeton: 20 }, unlock: ['montagehalle'], col: 5, row: 3, text: 'Schaltet die Montagehalle frei (drei Zutaten).' },
+  { id: 'kernkraft', name: 'Urantechnik', req: ['bohrer2', 'chemie'], cost: { wolframbarren: 20, saeure: 20 }, unlock: ['zentrifuge'], col: 5, row: 5, text: 'Schaltet die Zentrifuge frei (für Uranerz).' },
+  { id: 'reaktor', name: 'Kleinreaktor', req: ['kernkraft'], cost: { energiezelle: 15 }, bonus: { bohrer: 1.5, maschine: 1.25 }, col: 6, row: 5, text: 'Bohrer +50 %, Maschinen +25 %.' },
+  { id: 'helfer', name: 'Helferbots', req: ['montage'], cost: { helferbot: 10 }, bonus: { bohrer: 1.3 }, col: 6, row: 2, text: 'Helferbots warten die Bohrer: +30 %.' },
+  { id: 'rechenzentrum', name: 'Rechenzentrum', req: ['montage'], cost: { computer: 10 }, bonus: { band: 1.2, maschine: 1.1 }, col: 6, row: 3, text: 'Bänder +20 %, Maschinen +10 %.' },
+  { id: 'energie', name: 'Energienetz', req: ['montage', 'reaktor'], cost: { generator: 10 }, bonus: { maschine: 1.3 }, col: 6, row: 4, text: 'Alle Maschinen arbeiten 30 % schneller.' },
+  { id: 'raumfahrt', name: 'Raumfahrt', req: ['helfer', 'rechenzentrum', 'energie'], cost: { solarsegel: 20, computer: 10 }, bonus: { maschine: 1.2 }, col: 7, row: 3, text: 'Bereitet den Start der Raumsonde vor. Maschinen +20 %.' },
+  { id: 'ziel', name: 'Raumsonden-Start', req: ['raumfahrt'], cost: { raumsonde: 10 }, win: true, col: 8, row: 3, text: 'Das große Ziel: 10 Raumsonden. Danach ist die Fabrik fertig!' },
 ];
 const TECH_BY_ID = Object.fromEntries(TECHS.map((t) => [t.id, t]));
 
@@ -224,6 +302,13 @@ function generateMap(w, h, seed) {
     if (r > 0.68 && nShape(x / 3, y / 3, 2) > 0.38) tiles[idx(x, y)] = 't';
   }
 
+  // 4b. Sandstrände: Quarzsand an manchen Ufern
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    if (tiles[idx(x, y)] !== '.' && tiles[idx(x, y)] !== 'h') continue;
+    const shore = tiles[idx(x - 1, y)] === '~' || tiles[idx(x + 1, y)] === '~' || tiles[idx(x, y - 1)] === '~' || tiles[idx(x, y + 1)] === '~';
+    if (shore && nShape(x / 9 + 50, y / 9, 2) > 0.62) tiles[idx(x, y)] = 'q';
+  }
+
   // Erzfeld mit unregelmäßigem Rand (nicht über Wasser, außer bei erzwungenen Feldern)
   const field = (bx, by, kind, size, force) => {
     const R = Math.ceil(size + 2);
@@ -267,6 +352,10 @@ function generateMap(w, h, seed) {
     ['c', 8, 18, 80, 2.5, 4.5],
     ['w', 5, 32, 85, 2, 3.5],
     ['u', 4, 46, 90, 2, 3],
+    ['q', 4, 14, 70, 2.5, 4],
+    ['b', 6, 20, 80, 2.5, 4],
+    ['s', 5, 26, 85, 2.5, 3.5],
+    ['g', 4, 40, 90, 2, 3],
   ];
   const area = (w * h) / (160 * 160);
   const reach = Math.hypot(cx, cy);

@@ -50,7 +50,7 @@ Optionale Umgebungsvariablen: `PORT` (Standard 3000), `SAVE_DIR` (Standard `./sa
 
 ### Rohstoffe
 
-Holz (Wald), Stein, Eisenerz, Kupfererz, Kohle, Wolframerz und Uranerz (grün leuchtende Kristalle). Je seltener ein Erz, desto weiter draußen liegt es: Holz, Stein, Eisen und Kupfer gibt es direkt bei der Zentrale, Kohle etwas weiter weg, Wolfram und Uran nur am Rand.
+Elf Rohstoffe: Holz (Wald), Stein, Eisenerz, Kupfererz, Kohle, Quarzsand (an Ufern), Bauxit, Schwefel, Wolframerz, Golderz und Uranerz. Je seltener ein Rohstoff, desto weiter draußen liegt er: Holz, Stein, Eisen und Kupfer gibt es direkt bei der Zentrale, Gold, Wolfram und Uran nur am Rand.
 
 ### Die Karte
 
@@ -61,33 +61,57 @@ Neue Welten sind 160 × 160 Felder groß (vorher 80 × 80) und werden mit Rausch
 | Maschine | Rezepte |
 |---|---|
 | Sägewerk | Holz → Bretter |
-| Schmelzofen | Eisenerz → Eisenbarren · Kupfererz → Kupferbarren · Stein → Ziegel |
-| Presse | Eisenbarren → Zahnrad · Kupferbarren → Kupferdraht |
-| Hochofen | Eisenbarren + Kohle → Stahlträger · Wolframerz + Kohle → Wolframbarren |
-| Werkbank | Zahnrad + Kupferdraht → Motor · Kupferdraht + Bretter → Platine · Stahlträger + Ziegel → Stahlrahmen · Wolframbarren + Stahlträger → Bohrkopf · Uranpellet + Stahlrahmen → Energiezelle |
-| Fabrikator | Motor + Platine → Roboterarm · Roboterarm + Bohrkopf → Helferbot |
+| Schmelzofen | Eisenerz → Eisenbarren · Kupfererz → Kupferbarren · Stein → Ziegel · Quarzsand → Glasscheibe · Golderz → Goldbarren |
+| Steinbrecher | Stein → Kies · Bauxit → Tonerde · Schwefel → Schwefelpulver |
+| Presse | Eisenbarren → Zahnrad · Kupferbarren → Kupferdraht · Goldbarren → Golddraht · Aluminiumbarren → Alublech |
+| Hochofen | Eisenbarren + Kohle → Stahlträger · Wolframerz + Kohle → Wolframbarren · Tonerde + Kohle → Aluminiumbarren |
+| Werkbank | Zahnrad + Kupferdraht → Motor · Kupferdraht + Bretter → Platine · Glasscheibe + Kupferdraht → Glühbirne · Stahlträger + Ziegel → Stahlrahmen · Wolframbarren + Stahlträger → Bohrkopf · Uranpellet + Stahlrahmen → Energiezelle · Alublech + Stahlrahmen → Leichtrahmen |
+| Chemiewerk | Kies + Ziegel → Betonblock · Betonblock + Stahlträger → Stahlbeton · Schwefelpulver + Kohle → Säurekanister · Säurekanister + Bretter → Kunstharz · Säurekanister + Kupferbarren → Batterie · Kunstharz + Kupferdraht → Isolierkabel |
+| Fabrikator | Platine + 2× Golddraht → Steuerchip · Glasscheibe + Golddraht → Solarzelle · Motor + Steuerchip → Roboterarm · 2× Alublech + Motor → Turbine |
 | Zentrifuge | Uranerz → Uranpellet |
+| Montagehalle | Roboterarm + Bohrkopf + Batterie → Helferbot · Turbine + 2× Isolierkabel + Energiezelle → Generator · 2× Steuerchip + Kunstharz + Glühbirne → Computer · 2× Solarzelle + Leichtrahmen + Isolierkabel → Solarsegel · Computer + Generator + 2× Solarsegel → Raumsonde |
 
-Der **Verteiler** schickt Gegenstände abwechselnd nach vorne, rechts und links.
+Der **Verteiler** schickt Gegenstände abwechselnd nach vorne, rechts und links. Die **Montagehalle** braucht drei Zutaten gleichzeitig, also am besten von hinten, links und rechts anliefern.
 
 ### Techbaum
 
-Alles, was an der Zentrale ankommt, landet im Lager. Im Techbaum (Taste T oder Knopf „Techbaum öffnen") gebt ihr es für neue Technik aus. Jede Technik braucht ihre Vorgänger:
+Alles, was an der Zentrale ankommt, landet im Lager. Im Techbaum (Taste T oder Knopf „Techbaum öffnen") gebt ihr es für neue Technik aus. Der Baum hat 27 Techniken in neun Stufen, vom Sägewerk bis zum Start der Raumsonde:
 
-- Grundlagen → **Logistik** (Verteiler) → **Schnelle Bänder** → **Turbobänder**
-- Grundlagen → **Metallbau** (Presse) → **Hochofen** und **Werkbank**
-- Werkbank → **Scharfe Bohrer** → **Wolframbohrer** (braucht auch Hochofen)
-- Hochofen + Werkbank → **Fabrikator** → **Taktstraße** (alle Maschinen schneller)
-- Wolframbohrer → **Urantechnik** (Zentrifuge) → **Kleinreaktor** (Bohrer und Maschinen schneller)
-- Taktstraße + Urantechnik → **Helferbot-Programm**: 10 Helferbots und 10 Energiezellen, dann ist die Fabrik fertig
-
-Alte Spielstände werden beim Laden umgewandelt: Die Vorkommen werden zu Eisen, Kupfer und Stein, und der Techbaum fängt von vorne an.
+| Technik | Braucht | Kosten | Wirkung |
+|---|---|---|---|
+| Grundlagen | – | – | Bänder, Bohrer, Sägewerk und Schmelzofen. |
+| Logistik | Grundlagen | 20× Bretter + 10× Ziegel | Schaltet den Verteiler frei. |
+| Metallbau | Grundlagen | 20× Eisenbarren + 10× Bretter | Schaltet die Presse frei. |
+| Steinbruch | Grundlagen | 20× Ziegel + 10× Eisenbarren | Schaltet den Steinbrecher frei (Kies, Tonerde, Schwefelpulver). |
+| Schnelle Bänder | Logistik | 30× Eisenbarren + 20× Ziegel | Bänder laufen 50 % schneller. |
+| Hochofen | Metallbau | 20× Zahnrad + 30× Ziegel | Schaltet den Hochofen frei (braucht Kohle). |
+| Werkbank | Metallbau | 20× Zahnrad + 20× Kupferdraht | Schaltet die Werkbank frei. |
+| Scharfe Bohrer | Steinbruch, Metallbau | 30× Kies + 20× Zahnrad | Bohrer arbeiten 25 % schneller. |
+| Turbobänder | Schnelle Bänder, Werkbank | 20× Motor + 15× Platine | Bänder laufen noch einmal 50 % schneller. |
+| Elektrik | Werkbank | 25× Platine + 20× Glühbirne | Alle Maschinen arbeiten 20 % schneller. |
+| Fabrikator | Hochofen, Werkbank | 20× Platine + 20× Stahlträger | Schaltet den Fabrikator frei. |
+| Chemie | Steinbruch, Hochofen | 20× Stahlträger + 30× Kies + 20× Glasscheibe | Schaltet das Chemiewerk frei. |
+| Solartechnik | Elektrik, Fabrikator | 20× Solarzelle + 40× Glasscheibe | Maschinen arbeiten 15 % schneller. |
+| Steuerungstechnik | Fabrikator | 15× Steuerchip + 20× Motor | Maschinen arbeiten 25 % schneller. |
+| Wolframbohrer | Scharfe Bohrer, Fabrikator | 10× Bohrkopf + 40× Kies | Bohrer arbeiten 40 % schneller. |
+| Kunststoffe | Chemie | 25× Kunstharz + 10× Batterie | Bohrer arbeiten 20 % schneller. |
+| Leichtbau | Fabrikator, Chemie | 30× Alublech + 15× Stahlrahmen | Bänder laufen 25 % schneller. |
+| Magnetbänder | Turbobänder, Leichtbau | 10× Turbine + 40× Alublech | Bänder laufen noch einmal 50 % schneller. |
+| Taktstraße | Steuerungstechnik | 20× Roboterarm + 20× Steuerchip | Alle Maschinen arbeiten 50 % schneller. |
+| Montagehalle | Steuerungstechnik, Kunststoffe | 15× Roboterarm + 20× Isolierkabel + 20× Stahlbeton | Schaltet die Montagehalle frei (drei Zutaten). |
+| Urantechnik | Wolframbohrer, Chemie | 20× Wolframbarren + 20× Säurekanister | Schaltet die Zentrifuge frei (für Uranerz). |
+| Kleinreaktor | Urantechnik | 15× Energiezelle | Bohrer +50 %, Maschinen +25 %. |
+| Helferbots | Montagehalle | 10× Helferbot | Helferbots warten die Bohrer: +30 %. |
+| Rechenzentrum | Montagehalle | 10× Computer | Bänder +20 %, Maschinen +10 %. |
+| Energienetz | Montagehalle, Kleinreaktor | 10× Generator | Alle Maschinen arbeiten 30 % schneller. |
+| Raumfahrt | Helferbots, Rechenzentrum, Energienetz | 20× Solarsegel + 10× Computer | Bereitet den Start der Raumsonde vor. Maschinen +20 %. |
+| Raumsonden-Start | Raumfahrt | 10× Raumsonde | Das große Ziel: 10 Raumsonden. Danach ist die Fabrik fertig! |
 
 ### Steuerung
 
 | | PC | Handy |
 |---|---|---|
-| Bauen | Gebäude wählen (oder Taste 1–9, 0), klicken/ziehen | Gebäude wählen, tippen/ziehen |
+| Bauen | Gebäude wählen (oder Taste 1–9, 0, V, B, N), klicken/ziehen | Gebäude wählen, tippen/ziehen |
 | Drehen | R | ⟳ |
 | Abreißen | Rechtsklick oder X | 🗑 wählen, tippen |
 | Kamera | WASD, Leertaste/mittlere Maustaste + ziehen, Mausrad zoomt, Q/E oder 🧭 dreht | ✋ + ziehen, zwei Finger zoomen und drehen, 🧭 dreht |

@@ -136,7 +136,7 @@
   // ---------- Übersichtskarte ----------
   // Ein Pixel pro Feld; Gebäude und Kameraposition werden laufend darübergezeichnet.
   const mini = { el: $('minimap'), base: null, drawn: 0 };
-  const MINI_COL = { '.': '#9bd16f', '~': '#4aa6d6', h: '#4f9a4a', t: '#b4b8c0', e: '#b0705e', k: '#f0943c', c: '#3a3d46', w: '#9a8cd0', u: '#7ad94a' };
+  const MINI_COL = { '.': '#9bd16f', '~': '#4aa6d6', h: '#4f9a4a', t: '#b4b8c0', e: '#b0705e', k: '#f0943c', c: '#3a3d46', w: '#9a8cd0', u: '#7ad94a', q: '#f0e0a8', b: '#c0603a', s: '#f2dc3a', g: '#e8c040' };
   function renderMinimapBase() {
     const b = document.createElement('canvas');
     b.width = world.w; b.height = world.h;
@@ -308,6 +308,10 @@
       c: { soil: '#9a9a8a', main: '#3a3d46', light: '#6a6e7a', dark: '#22242a' },
       w: { soil: '#b4b0c8', main: '#8a7fb0', light: '#c8c0ee', dark: '#5f5488' },
       u: { soil: '#a8b890', main: '#7ad94a', light: '#d4ff9a', dark: '#3f8a2a' },
+      q: { soil: '#f0e0a8', main: '#e6cf88', light: '#fff4cc', dark: '#c8ae66' },
+      b: { soil: '#d8a890', main: '#c0603a', light: '#e89070', dark: '#8a3a22' },
+      s: { soil: '#e8e0a0', main: '#f2dc3a', light: '#fff6a0', dark: '#b8a020' },
+      g: { soil: '#c8c0a8', main: '#e8c040', light: '#fff0a0', dark: '#a88420' },
     };
     for (let y = 0; y < world.h; y++) {
       for (let x = 0; x < world.w; x++) {
@@ -340,7 +344,7 @@
             c.beginPath(); c.arc(px, py, r * 1.05, 0, Math.PI * 2); c.fill();
             c.fillStyle = d.light;
             c.beginPath(); c.arc(px - r * 0.35, py - r * 0.35, r * 0.4, 0, Math.PI * 2); c.fill();
-          } else if (t === 'w' || t === 'u') {
+          } else if (t === 'w' || t === 'u' || t === 's') {
             // Kristall
             c.fillStyle = d.main;
             c.beginPath();
@@ -415,6 +419,9 @@
     werkbank: ['#3fc48a'],
     fabrikator: ['#22b8c8'],
     zentrifuge: ['#7ac943'],
+    brecher: ['#e0a030'],
+    chemiewerk: ['#e05aa0'],
+    montagehalle: ['#4a7ae0'],
     zentrale: ['#9a7cf2', '#6f52c870'],
   };
 
@@ -608,6 +615,32 @@
         c.fillRect(-s * 0.035, -s * 0.2, s * 0.07, s * 0.2);
         c.restore();
         c.beginPath(); c.arc(cx - s * 0.12, cy + s * 0.14, s * 0.07, 0, Math.PI * 2); c.fill();
+      } else if (kind === 'brecher') {
+        // zwei gegenläufige Walzen
+        for (const sx of [-1, 1]) {
+          c.save();
+          c.translate(cx + sx * s * 0.1, cy);
+          c.rotate(spin * sx * 2);
+          c.beginPath(); c.arc(0, 0, s * 0.11, 0, Math.PI * 2); c.fill();
+          c.fillStyle = roof;
+          c.fillRect(-s * 0.1, -s * 0.015, s * 0.2, s * 0.03);
+          c.restore();
+          c.fillStyle = '#ffffff';
+        }
+      } else if (kind === 'chemiewerk') {
+        // Kolben mit blubbernder Flüssigkeit
+        c.beginPath();
+        c.moveTo(cx - s * 0.05, cy - s * 0.24); c.lineTo(cx + s * 0.05, cy - s * 0.24); c.lineTo(cx + s * 0.05, cy - s * 0.08);
+        c.lineTo(cx + s * 0.2, cy + s * 0.18); c.lineTo(cx - s * 0.2, cy + s * 0.18); c.lineTo(cx - s * 0.05, cy - s * 0.08); c.closePath(); c.fill();
+        c.fillStyle = '#c8f05a';
+        c.beginPath(); c.moveTo(cx - s * 0.13, cy + s * 0.06); c.lineTo(cx + s * 0.13, cy + s * 0.06); c.lineTo(cx + s * 0.18, cy + s * 0.16); c.lineTo(cx - s * 0.18, cy + s * 0.16); c.closePath(); c.fill();
+        if (opts.busy) { c.beginPath(); c.arc(cx + Math.sin(t * 5) * s * 0.03, cy - s * 0.3 - ((t * 0.8) % 1) * s * 0.1, s * 0.03, 0, Math.PI * 2); c.fill(); }
+      } else if (kind === 'montagehalle') {
+        // Halle mit Satteldach und Tor
+        c.beginPath(); c.moveTo(cx - s * 0.24, cy - s * 0.02); c.lineTo(cx, cy - s * 0.24); c.lineTo(cx + s * 0.24, cy - s * 0.02); c.closePath(); c.fill();
+        c.fillRect(cx - s * 0.2, cy - s * 0.02, s * 0.4, s * 0.22);
+        c.fillStyle = roof;
+        c.fillRect(cx - s * 0.08, cy + s * 0.06, s * 0.16, s * 0.14);
       } else if (kind === 'zentrifuge') {
         c.save();
         c.translate(cx, cy);
@@ -747,6 +780,10 @@
         c.moveTo(cx - r * 0.8, cy + r * 0.8); c.lineTo(cx - r * 0.8, cy + r * 0.3); c.lineTo(cx - r * 0.2, cy + r * 0.3);
         c.lineTo(cx + r * 0.2, cy - r * 0.6); c.lineTo(cx + r * 0.8, cy - r * 0.6); c.lineTo(cx + r * 0.8, cy - r * 0.2);
         c.lineTo(cx + r * 0.45, cy - r * 0.2); c.lineTo(cx + r * 0.05, cy + r * 0.8); c.closePath();
+        break;
+      case 'probe':
+        c.moveTo(cx, cy - r); c.lineTo(cx + r * 0.4, cy + r * 0.2); c.lineTo(cx + r * 0.9, cy + r * 0.8);
+        c.lineTo(cx - r * 0.9, cy + r * 0.8); c.lineTo(cx - r * 0.4, cy + r * 0.2); c.closePath();
         break;
       case 'pellet':
         roundRect(c, cx - r * 0.5, cy - r * 0.8, r, r * 1.6, r * 0.35);
@@ -1095,7 +1132,7 @@
     const area = $('tree-area');
     area.innerHTML = '';
     const small = innerWidth < 700;
-    const CW = small ? 175 : 200, RH = small ? 140 : 150, NW = small ? 155 : 175;
+    const CW = small ? 172 : 192, RH = small ? 150 : 168, NW = small ? 152 : 170;
     const cols = Math.max(...defs.TECHS.map((t) => t.col)) + 1;
     const rows = Math.max(...defs.TECHS.map((t) => t.row)) + 1;
     area.style.width = `${cols * CW}px`;
@@ -1131,7 +1168,10 @@
       const d = document.createElement('div');
       d.className = 'tech-text';
       d.textContent = t.text;
-      node.append(h, d);
+      node.title = t.text;
+      // Erledigte und gesperrte Techniken kompakt halten, damit der große Baum übersichtlich bleibt
+      node.append(h);
+      if (st === 'open' || st === 'ready') node.append(d);
       if (st !== 'done' && Object.keys(t.cost).length) node.appendChild(costChips(t));
       if (st === 'ready' || st === 'open') node.appendChild(researchButton(t, st));
       area.appendChild(node);
@@ -1141,6 +1181,9 @@
   function openTechTree() {
     $('techtree').classList.remove('hidden');
     renderTechTree();
+    // Zur ersten erforschbaren Technik scrollen
+    const next = document.querySelector('#tree-area .tech.ready, #tree-area .tech.open');
+    if (next) next.scrollIntoView({ block: 'center', inline: 'center' });
   }
   $('open-tree').onclick = openTechTree;
   $('close-tree').onclick = () => $('techtree').classList.add('hidden');

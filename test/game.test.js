@@ -166,3 +166,47 @@ test('Zentrifuge macht aus Uranerz Pellets', () => {
   run(w, 500);
   assert.ok((w.research.stock.uranpellet || 0) > 2, JSON.stringify(w.research.stock));
 });
+
+test('Großer Techbaum: jede Technik ist mit den Gebäuden ihrer Vorgänger bezahlbar', () => {
+  const byId = Object.fromEntries(TECHS.map((t) => [t.id, t]));
+  const ancestors = (id, set = new Set()) => { for (const q of byId[id].req) if (!set.has(q)) { set.add(q); ancestors(q, set); } return set; };
+  for (const t of TECHS) {
+    const built = new Set();
+    for (const a of [...ancestors(t.id)]) (byId[a].unlock || []).forEach((k) => built.add(k));
+    const have = new Set(Object.values(DEFS.DEPOSITS));
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const k of built) for (const r of DEFS.RECIPES[k] || []) {
+        if (!have.has(r.out) && Object.keys(r.in).every((i) => have.has(i))) { have.add(r.out); grew = true; }
+      }
+    }
+    for (const i of Object.keys(t.cost)) assert.ok(have.has(i), `${t.id}: ${i} ist mit den Vorgängern noch nicht herstellbar`);
+  }
+  // Umfang: mindestens 25 Techniken, 13 Gebäude, 11 Rohstoffe, 50 Gegenstände
+  assert.ok(TECHS.length >= 25);
+  assert.ok(Object.keys(DEFS.BUILDINGS).length >= 13);
+  assert.ok(Object.keys(DEFS.DEPOSITS).length >= 11);
+  assert.ok(Object.keys(DEFS.ITEMS).length >= 50);
+  // Jedes Gebäude wird von einer Technik freigeschaltet, jeder Gegenstand ist ein Rohstoff oder ein Produkt
+  const unlocks = new Set(TECHS.flatMap((t) => t.unlock || []));
+  for (const k of Object.keys(DEFS.BUILDINGS)) assert.ok(unlocks.has(k), k + ' wird nie freigeschaltet');
+  const made = new Set([...Object.values(DEFS.DEPOSITS), ...Object.values(DEFS.RECIPES).flat().map((r) => r.out)]);
+  for (const i of Object.keys(DEFS.ITEMS)) assert.ok(made.has(i), i + ' kann nicht entstehen');
+  // Innerhalb einer Maschine darf kein Rezept eine Teilmenge eines anderen sein
+  for (const [k, list] of Object.entries(DEFS.RECIPES)) for (const a of list) for (const b of list) {
+    if (a === b) continue;
+    assert.ok(!Object.keys(a.in).every((i) => b.in[i]), `${k}: ${a.out} steckt in ${b.out}`);
+  }
+});
+
+test('Montagehalle verarbeitet drei Zutaten', () => {
+  const w = makeWorld();
+  w.research.done.push('montage');
+  w.place('montagehalle', 5, 5, 0);
+  const b = w.at(5, 5);
+  for (const it of ['roboterarm', 'bohrkopf', 'batterie']) { assert.ok(w.accepts(b, it, 4, 5), it); w.insert(b, it); }
+  assert.ok(!w.accepts(b, 'computer', 4, 5));
+  run(w, 200);
+  assert.strictEqual(b.state.buf.roboterarm || 0, 0, JSON.stringify(b.state));
+});
