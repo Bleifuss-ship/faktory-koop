@@ -1,3 +1,3 @@
 # Fabrik-Koop
 
-Kooperatives Fabrikbau-Spiel im Browser.
+Kooperatives Fabrikbau-Spiel. ist noch in entwicklung!
