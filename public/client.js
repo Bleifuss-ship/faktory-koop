@@ -257,6 +257,10 @@
       const n = world.grid.get((b.x + ox) + ',' + (b.y + oy));
       if (!n || n === b || n.size > 1) return false;
       if (n.kind === 'kreuzung') return true; // Kreuzungen geben geradeaus weiter
+      if (n.kind === 'verteiler') { // Verteiler geben nach vorne, rechts und links aus
+        const back = DIRS[(n.dir + 2) % 4];
+        return !(n.x + back[0] === b.x && n.y + back[1] === b.y);
+      }
       const [fx, fy] = DIRS[n.dir];
       return n.x + fx === b.x && n.y + fy === b.y;
     };
@@ -487,6 +491,7 @@
     saege: ['#c98a4b'],
     schmelze: ['#f06a55'],
     verteiler: ['#8a94a8'],
+    zusammenfuehrer: ['#4fb3a6'],
     presse: ['#5b8ff0'],
     hochofen: ['#d94f6b'],
     werkbank: ['#3fc48a'],
@@ -708,6 +713,17 @@
           c.beginPath(); c.moveTo(s * 0.24, 0); c.lineTo(s * 0.14, -s * 0.07); c.lineTo(s * 0.14, s * 0.07); c.closePath(); c.fill();
           c.restore();
         }
+      } else if (kind === 'zusammenfuehrer') {
+        // drei Pfeile nach innen, einer nach vorne hinaus
+        for (const a of [Math.PI, Math.PI / 2, -Math.PI / 2]) {
+          c.save();
+          c.translate(cx, cy);
+          c.rotate(a + d * Math.PI / 2);
+          c.beginPath(); c.moveTo(s * 0.24, 0); c.lineTo(s * 0.12, 0); c.stroke();
+          c.beginPath(); c.moveTo(s * 0.06, 0); c.lineTo(s * 0.15, -s * 0.07); c.lineTo(s * 0.15, s * 0.07); c.closePath(); c.fill();
+          c.restore();
+        }
+        c.beginPath(); c.arc(cx, cy, s * 0.05, 0, Math.PI * 2); c.fill();
       } else if (kind === 'hochofen') {
         roundRect(c, cx - s * 0.18, cy - s * 0.04, s * 0.36, s * 0.24, s * 0.05); c.fill();
         c.fillRect(cx + s * 0.06, cy - s * 0.26, s * 0.09, s * 0.22);
@@ -1084,11 +1100,12 @@
   function canPlace(kind, x, y) {
     if (x < 0 || y < 0 || x >= world.w || y >= world.h) return false;
     const b = world.grid.get(x + ',' + y);
-    if (b && !(b.kind === 'band' && (kind === 'band' || kind === 'kreuzung'))) return false;
+    const part = defs && defs.BELT_PARTS ? defs.BELT_PARTS.includes(kind) : kind === 'kreuzung';
+    if (b && !(b.kind === 'band' && (kind === 'band' || part))) return false;
     const tile = world.tiles[y * world.w + x];
     if (kind === 'bohrer' && !(defs && defs.DEPOSITS[tile])) return false;
-    if (kind !== 'band' && kind !== 'kreuzung' && tile === '~') return false;
-    if ((!b || kind === 'kreuzung') && defs && defs.COSTS && money < (defs.COSTS[kind] || 0)) return false;
+    if (kind !== 'band' && !part && tile === '~') return false;
+    if ((!b || part) && defs && defs.COSTS && money < (defs.COSTS[kind] || 0)) return false;
     return true;
   }
 

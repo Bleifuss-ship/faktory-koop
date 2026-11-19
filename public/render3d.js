@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from './vendor/RoundedBoxGeometry.js';
 
 const DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]];
-const ROOF = { bohrer: 0xf6a83b, saege: 0xc98a4b, schmelze: 0xf06a55, verteiler: 0x8a94a8, presse: 0x5b8ff0, hochofen: 0xd94f6b, werkbank: 0x3fc48a, fabrikator: 0x22b8c8, zentrifuge: 0x7ac943, brecher: 0xe0a030, chemiewerk: 0xe05aa0, montagehalle: 0x4a7ae0, zentrale: 0x9a7cf2 };
+const ROOF = { bohrer: 0xf6a83b, saege: 0xc98a4b, schmelze: 0xf06a55, verteiler: 0x8a94a8, zusammenfuehrer: 0x4fb3a6, presse: 0x5b8ff0, hochofen: 0xd94f6b, werkbank: 0x3fc48a, fabrikator: 0x22b8c8, zentrifuge: 0x7ac943, brecher: 0xe0a030, chemiewerk: 0xe05aa0, montagehalle: 0x4a7ae0, zentrale: 0x9a7cf2 };
 const BELT_TOP = 0.11;
 
 function hash(x, y, k = 0) {
@@ -879,6 +879,23 @@ function create(canvas) {
       g.userData.disc = disc;
       addOutput(g, ghost, 0, Math.PI / 2);
       addOutput(g, ghost, 0, -Math.PI / 2);
+    } else if (kind === 'zusammenfuehrer') {
+      // Zusammenführer: Metallkasten mit Trichter, drei Pfeile zeigen nach innen, vorne eine Rutsche
+      part(g, new RoundedBoxGeometry(0.72, 0.18, 0.72, 2, 0.05), X.metal, [1, 1, 1], [0, 0.17, 0]);
+      part(g, BG.cyl, R.zusammenfuehrer, [0.5, 0.05, 0.5], [0, 0.28, 0]);
+      part(g, BG.cyl, X.darkMetal, [0.22, 0.12, 0.22], [0, 0.34, 0]);
+      const ring = part(g, BG.cyl, R.zusammenfuehrer, [0.12, 0.03, 0.12], [0, 0.415, 0]);
+      for (const a of [Math.PI, Math.PI / 2, -Math.PI / 2]) {
+        const piv = new THREE.Group();
+        piv.rotation.y = a;
+        const arrow = new THREE.Mesh(G.arrow, ghost || M.white);
+        arrow.rotation.set(Math.PI / 2, 0, Math.PI / 2);
+        arrow.position.set(0.25, 0.31, 0);
+        piv.add(arrow);
+        g.add(piv);
+      }
+      part(g, BG.box, R.zusammenfuehrer, [0.2, 0.06, 0.22], [0.27, 0.3, 0]);
+      g.userData.mergeRing = ring;
     }
     g.traverse((o) => { if (o.isMesh && !ghost) { o.castShadow = o.receiveShadow = true; } });
     return g;
@@ -1303,6 +1320,7 @@ function create(canvas) {
       if (u.gear && busyItem) u.gear.rotation.y += dtSec * 1.5;
       if (u.arm) { u.arm.rotation.y = busyItem ? Math.sin(t * 2 + id) * 1.4 : 0.6; u.fore.rotation.z = busyItem ? -1.5 + Math.sin(t * 4 + id) * 0.4 : -1.5; }
       if (u.disc) u.disc.rotation.y += dtSec * 1.5;
+      if (u.mergeRing) u.mergeRing.rotation.y -= dtSec * 2;
       if (u.rollers && busyItem) { u.rollers[0].rotation.z += dtSec * 8; u.rollers[1].rotation.z -= dtSec * 8; }
       if (u.bubble) { const k = busyItem ? 1 + Math.sin(t * 9 + id) * 0.08 : 1; u.bubble.scale.set(0.22 * k, 0.16 * (busyItem ? 1 + Math.sin(t * 11 + id) * 0.12 : 1), 0.22 * k); }
       if (u.trolley) { u.trolley.position.z = busyItem ? Math.sin(t * 1.2 + id) * 0.28 : 0; u.trolley.children[2].position.y = busyItem ? -0.26 + Math.abs(Math.sin(t * 2.4 + id)) * 0.1 : -0.26; }
