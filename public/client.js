@@ -19,6 +19,7 @@
   let me = null;
   const world = { w: 0, h: 0, tiles: '', buildings: new Map(), grid: new Map(), ground: null, version: 0 };
   let items = [];
+  let crossItems = []; // Gegenstände auf Kreuzungen: x, y, item, p, Richtung
   let busy = new Map();
   let research = null;
   let unlocked = [];
@@ -88,6 +89,7 @@
         break;
       case 'tick':
         items = m.items;
+        crossItems = m.cross || [];
         busy = new Map();
         for (let i = 0; i < m.busy.length; i += 2) busy.set(m.busy[i], m.busy[i + 1]);
         lastTickAt = performance.now();
@@ -192,7 +194,7 @@
     const g = mini.el.getContext('2d');
     g.drawImage(mini.base, 0, 0);
     for (const b of world.buildings.values()) {
-      g.fillStyle = b.kind === 'band' ? '#596173' : b.kind === 'zentrale' ? '#9a7cf2' : (KIND_COLORS[b.kind] || ['#fff'])[0];
+      g.fillStyle = b.kind === 'band' || b.kind === 'kreuzung' ? '#596173' : b.kind === 'zentrale' ? '#9a7cf2' : (KIND_COLORS[b.kind] || ['#fff'])[0];
       g.fillRect(b.x, b.y, b.size, b.size);
     }
     // Sichtbereich: die vier Bildschirmecken auf den Boden projiziert
@@ -254,6 +256,7 @@
     const feeds = (ox, oy) => {
       const n = world.grid.get((b.x + ox) + ',' + (b.y + oy));
       if (!n || n === b || n.size > 1) return false;
+      if (n.kind === 'kreuzung') return true; // Kreuzungen geben geradeaus weiter
       const [fx, fy] = DIRS[n.dir];
       return n.x + fx === b.x && n.y + fy === b.y;
     };
@@ -914,7 +917,7 @@
       if (!world.w) return;
       updateKeys();
       drawMinimap();
-      r3d.render({ world, items, busy, beltSpeed, beltCurve, beltPoint, lastTickAt, hover, tool, dir, cursors, players, defs, canPlace });
+      r3d.render({ world, items, crossItems, busy, beltSpeed, beltCurve, beltPoint, lastTickAt, hover, tool, dir, cursors, players, defs, canPlace });
       return;
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -980,6 +983,15 @@
       visible.push(b);
     }
     for (const b of visible) {
+      if (b.kind === 'kreuzung') {
+        // zwei gerade Bänder übereinander
+        const [sx, sy] = toScreen(b.x, b.y);
+        drawBuilding(ctx, 'band', sx, sy, s, 0);
+        drawBuilding(ctx, 'band', sx, sy, s, 1);
+        ctx.fillStyle = 'rgba(255,210,63,0.9)';
+        for (const [ox, oy] of [[0.08, 0.08], [0.82, 0.08], [0.08, 0.82], [0.82, 0.82]]) ctx.fillRect(sx + ox * s, sy + oy * s, s * 0.1, s * 0.1);
+        continue;
+      }
       if (b.kind !== 'band') continue;
       const [sx, sy] = toScreen(b.x, b.y);
       drawBuilding(ctx, b.kind, sx, sy, s, b.dir, { curve: beltCurve(b) });
@@ -999,9 +1011,15 @@
       ctx.beginPath(); ctx.ellipse(sx + s * 0.03, sy + s * 0.12, s * 0.2, s * 0.08, 0, 0, Math.PI * 2); ctx.fill();
       drawItem(ctx, items[i + 2], sx, sy, s * 0.5);
     }
+    for (let i = 0; i < crossItems.length; i += 5) {
+      const [dx, dy] = DIRS[crossItems[i + 4]];
+      const p = Math.min(1, crossItems[i + 3] + (crossItems[i + 3] < 1 ? beltSpeed * dt : 0));
+      const [sx, sy] = toScreen(crossItems[i] + 0.5 + dx * (p - 0.5), crossItems[i + 1] + 0.5 + dy * (p - 0.5));
+      drawItem(ctx, crossItems[i + 2], sx, sy, s * 0.5);
+    }
 
     for (const b of visible) {
-      if (b.kind === 'band') continue;
+      if (b.kind === 'band' || b.kind === 'kreuzung') continue;
       const [sx, sy] = toScreen(b.x, b.y);
       drawBuilding(ctx, b.kind, sx, sy, s, b.dir, { size: b.size, busy: busy.get(b.id) });
     }
@@ -1078,7 +1096,7 @@
   function buildToolbar() {
     const bar = $('toolbar');
     bar.innerHTML = '';
-    TOOLS = ['hand', ...Object.keys(defs.BUILDINGS), 'delete'];
+    TOOLS = ['hand', ...Object.keys(defs.BUILDINGS).filter((k) => !defs.BUILDINGS[k].hidden), 'delete'];
     TOOLS.forEach((t, i) => {
       const btn = document.createElement('button');
       btn.dataset.tool = t;
@@ -1327,6 +1345,17 @@
     return { x: Math.floor(wx), y: Math.floor(wy), wx, wy };
   }
 
+  // Beim Ziehen quer über ein bestehendes Band entsteht eine Kreuzung
+  function crossCell(x, y, d) {
+    const key = x + ',' + y;
+    const c = { x, y, dir: d };
+    const b = world.grid.get(key);
+    if (drag && drag.placed && b && b.kind === 'band' && !drag.placed.has(key) && b.dir % 2 !== d % 2) c.cross = true;
+    if (drag && drag.placed && !c.cross && (!b || b.kind === 'band')) drag.placed.add(key);
+    if (c.cross) drag.placed.add(key);
+    return c;
+  }
+
   function buildAt(cell, from) {
     if (tool === 'band' && from && (from.x !== cell.x || from.y !== cell.y)) {
       // Linie von "from" nach "cell" in Einzelschritten, Bänder zeigen in Zugrichtung
@@ -1338,12 +1367,12 @@
         const dy = Math.sign(cell.y - cy);
         const step = Math.abs(cell.x - cx) >= Math.abs(cell.y - cy) ? [dx, 0] : [0, dy];
         const d = DIRS.findIndex((v) => v[0] === step[0] && v[1] === step[1]);
-        cells.push({ x: cx, y: cy, dir: d });
+        cells.push(crossCell(cx, cy, d));
         cx += step[0];
         cy += step[1];
         dir = d;
       }
-      cells.push({ x: cx, y: cy, dir });
+      cells.push(crossCell(cx, cy, dir));
       send({ t: 'place', kind: 'band', cells });
     } else {
       send({ t: 'place', kind: tool, x: cell.x, y: cell.y, dir });
@@ -1376,7 +1405,7 @@
       drag = { mode: 'erase', last: cell };
       eraseAt(cell);
     } else if (e.button === 0) {
-      drag = { mode: 'build', last: cell };
+      drag = { mode: 'build', last: cell, placed: new Set([cell.x + ',' + cell.y]) };
       buildAt(cell, null);
     }
   });

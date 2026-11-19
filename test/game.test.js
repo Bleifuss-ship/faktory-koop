@@ -191,7 +191,7 @@ test('Großer Techbaum: jede Technik ist mit den Gebäuden ihrer Vorgänger beza
   assert.ok(Object.keys(DEFS.ITEMS).length >= 50);
   // Jedes Gebäude wird von einer Technik freigeschaltet, jeder Gegenstand ist ein Rohstoff oder ein Produkt
   const unlocks = new Set(TECHS.flatMap((t) => t.unlock || []));
-  for (const k of Object.keys(DEFS.BUILDINGS)) assert.ok(unlocks.has(k), k + ' wird nie freigeschaltet');
+  for (const k of Object.keys(DEFS.BUILDINGS)) if (!DEFS.BUILDINGS[k].hidden) assert.ok(unlocks.has(k), k + ' wird nie freigeschaltet');
   const made = new Set([...Object.values(DEFS.DEPOSITS), ...Object.values(DEFS.RECIPES).flat().map((r) => r.out)]);
   for (const i of Object.keys(DEFS.ITEMS)) assert.ok(made.has(i), i + ' kann nicht entstehen');
   // Innerhalb einer Maschine darf kein Rezept eine Teilmenge eines anderen sein
@@ -234,4 +234,40 @@ test('Geld: Bauen kostet, Abreißen erstattet, Liefern bringt Geld', () => {
   }
   const w2 = World.fromJSON(JSON.parse(JSON.stringify(w.toJSON())));
   assert.strictEqual(w2.money, w.money);
+});
+
+test('Kreuzung: quer gezogenes Band kreuzt, beide Richtungen laufen geradeaus', () => {
+  const tiles = '.'.repeat(400).split('');
+  tiles[5 * 20 + 1] = 'e'; // Eisen links
+  tiles[1 * 20 + 5] = 'k'; // Kupfer oben
+  const w = new World({ w: 20, h: 20, seed: 1, tiles: tiles.join('') });
+  w.money = 1000;
+  // waagerechte Linie y=5 von x=2..8 nach rechts, Ende in Sammelband nach unten
+  w.place('bohrer', 1, 5, 0);
+  for (let x = 2; x <= 8; x++) w.place('band', x, 5, 0);
+  // senkrechte Linie x=5 von y=2..8 nach unten, kreuzt bei (5,5)
+  w.place('bohrer', 5, 1, 1);
+  for (let y = 2; y <= 8; y++) assert.strictEqual(w.place('band', 5, y, 1, { cross: y === 5 }), null);
+  assert.strictEqual(w.at(5, 5).kind, 'kreuzung');
+  // ohne cross-Flag wird ein Band nur gedreht
+  w.place('band', 3, 5, 1);
+  assert.strictEqual(w.at(3, 5).kind, 'band');
+  w.place('band', 3, 5, 0);
+  // Ziel: Kisten am Ende zählen über Fake-Zentrale -> wir prüfen Items hinter der Kreuzung
+  const seen = { h: new Set(), v: new Set() };
+  for (let i = 0; i < 400; i++) {
+    w.step();
+    const a = w.at(6, 5).state.item; if (a) seen.h.add(a);
+    const b = w.at(5, 6).state.item; if (b) seen.v.add(b);
+  }
+  assert.deepStrictEqual([...seen.h], ['eisenerz']);
+  assert.deepStrictEqual([...seen.v], ['kupfererz']);
+  const before = w.money;
+  w.remove(5, 5);
+  assert.strictEqual(w.money, before + DEFS.COSTS.kreuzung);
+  // Speichern mit Kreuzung
+  w.place('band', 5, 5, 0);
+  w.place('band', 5, 5, 1, { cross: true });
+  const w2 = World.fromJSON(JSON.parse(JSON.stringify(w.toJSON())));
+  assert.ok([...w2.buildings.values()].some((b) => b.kind === 'kreuzung'));
 });

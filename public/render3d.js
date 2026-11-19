@@ -501,6 +501,8 @@ function create(canvas) {
     hazard: mat(0xffffff, { map: hazardTex }),
     uranGlow: new THREE.MeshBasicMaterial({ color: 0x9cff5a }),
     acid: new THREE.MeshBasicMaterial({ color: 0xc8f05a }),
+    soot: mat(0x24201e),
+    flame: new THREE.MeshBasicMaterial({ color: 0xffc040, transparent: true, opacity: 0.92 }),
     corr: ROOF_CORR,
     stripes: mat(0xffffff, { map: stripeTex }),
     ember: new THREE.MeshBasicMaterial({ color: 0xffa040 }),
@@ -518,6 +520,16 @@ function create(canvas) {
     cone: new THREE.ConeGeometry(0.5, 1, 16),
     ring4: new THREE.TorusGeometry(0.5, 0.025, 4, 4),
     band: new THREE.TorusGeometry(0.5, 0.04, 6, 24),
+    crossFrame: new THREE.BoxGeometry(1, 0.1, 1),
+    ovenBody: new RoundedBoxGeometry(0.72, 0.46, 0.68, 2, 0.05),
+    // Rundbogen-Öffnung (Breite 0.34, Höhe 0.3), Vorderseite zeigt nach +z
+    arch: (() => {
+      const sh = new THREE.Shape();
+      sh.moveTo(-0.13, 0); sh.lineTo(0.13, 0); sh.lineTo(0.13, 0.13);
+      sh.absarc(0, 0.13, 0.13, 0, Math.PI, false);
+      sh.lineTo(-0.13, 0);
+      return new THREE.ExtrudeGeometry(sh, { depth: 0.02, bevelEnabled: false, curveSegments: 10 });
+    })(),
     // Satteldach: dreieckiges Profil, First in x-Richtung
     hallRoof: (() => {
       const sh = new THREE.Shape();
@@ -584,6 +596,16 @@ function create(canvas) {
       const f = m(G.beltFrame, M.grey); f.position.y = 0.05;
       const t = m(G.beltTop, beltMat); t.position.y = BELT_TOP;
       g.add(f, t);
+      return g;
+    }
+    if (kind === 'kreuzung') {
+      const f = m(BG.crossFrame, M.grey); f.position.y = 0.05;
+      const a = m(G.beltTop, beltMat); a.position.y = BELT_TOP;
+      const b = m(G.beltTop, beltMat); b.position.y = BELT_TOP + 0.006; b.rotation.y = -Math.PI / 2;
+      g.add(f, a, b);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+        const k = m(BG.box, BM.stripes); k.scale.set(0.16, 0.03, 0.16); k.position.set(sx * 0.41, 0.115, sz * 0.41); g.add(k);
+      }
       return g;
     }
     if (kind === 'zentrale') {
@@ -654,15 +676,42 @@ function create(canvas) {
       part(g, BG.dome, ghost || mat(0xe6c48c), [0.22, 0.1, 0.18], [0.3, 0.08, 0.3]);
       part(g, BG.box, R.saege, [0.84, 0.03, 0.06], [0, 0.45, -0.25]);
     } else if (kind === 'schmelze') {
-      // Schmelzofen: Steinsockel mit Kuppel, glühende Öffnung, Schornstein
-      part(g, BG.box, X.stone, [0.74, 0.26, 0.74], [0, 0.21, 0]);
-      part(g, BG.dome, X.brickRed, [0.7, 0.62, 0.7], [0, 0.34, 0]);
-      part(g, BG.box, X.darkMetal, [0.08, 0.22, 0.28], [0.34, 0.32, 0]);
-      const ember = part(g, BG.cyl, X.ember, [0.2, 0.02, 0.2], [0.385, 0.33, 0], [0, 0, Math.PI / 2]);
-      g.userData.ember = ember;
-      part(g, BG.cyl, X.brickRed, [0.14, 0.42, 0.14], [-0.2, 0.75, -0.2]);
-      part(g, BG.cyl, X.darkMetal, [0.17, 0.05, 0.17], [-0.2, 0.97, -0.2]);
-      g.userData.smoke = new THREE.Vector3(-0.2, 1.02, -0.2);
+      // Schmelzofen: kräftiger Ziegelblock auf Steinsockel, große Feueröffnung mit
+      // Rundbogen und Flammen, Guckfenster an den Seiten, Erztrichter und eckiger Schornstein
+      part(g, BG.box, X.stone, [0.82, 0.12, 0.8], [0, 0.14, 0]);
+      part(g, BG.ovenBody, X.brickRed, [1, 1, 1], [0, 0.43, 0]);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) part(g, BG.box, X.darkMetal, [0.07, 0.5, 0.07], [sx * 0.355, 0.44, sz * 0.335]);
+      part(g, BG.box, X.darkMetal, [0.78, 0.05, 0.74], [0, 0.68, 0]);
+      part(g, BG.box, R.schmelze, [0.72, 0.06, 0.68], [0, 0.73, 0]);
+      // Feuermaul nach vorne (Ausgabeseite)
+      part(g, BG.arch, X.stone, [1.25, 1.25, 1], [0.352, 0.2, 0], [0, Math.PI / 2, 0]);
+      part(g, BG.arch, X.soot, [1, 1, 1], [0.362, 0.22, 0], [0, Math.PI / 2, 0]);
+      const mouth = part(g, BG.arch, X.ember, [0.82, 0.8, 1], [0.37, 0.235, 0], [0, Math.PI / 2, 0]);
+      const flames = [];
+      for (const [z, sc] of [[-0.07, 0.8], [0.0, 1.1], [0.07, 0.75]]) {
+        const f = part(g, BG.cone, X.flame, [0.08 * sc, 0.2 * sc, 0.08 * sc], [0.395, 0.3 + 0.1 * sc - 0.1, z]);
+        f.userData.base = sc;
+        flames.push(f);
+      }
+      for (let i = 0; i < 4; i++) part(g, new THREE.DodecahedronGeometry(0.04, 0), X.coal, [1, 1, 1], [0.4, 0.25, -0.09 + i * 0.06]);
+      // runde Guckfenster links und rechts
+      const ports = [];
+      for (const sz of [-1, 1]) {
+        part(g, BG.band, X.darkMetal, [0.13, 0.13, 0.13], [0.05, 0.46, sz * 0.345]);
+        ports.push(part(g, BG.cyl, X.ember, [0.11, 0.02, 0.11], [0.05, 0.46, sz * 0.343], [Math.PI / 2, 0, 0]));
+      }
+      // Erztrichter mit Erzbrocken
+      part(g, new THREE.CylinderGeometry(0.17, 0.09, 0.16, 4), R.schmelze, [1, 1, 1], [0.12, 0.84, 0.13], [0, Math.PI / 4, 0]);
+      for (let i = 0; i < 3; i++) part(g, new THREE.DodecahedronGeometry(0.045, 0), ghost || mat(0x9a5a4e, { flatShading: true }), [1, 1, 1], [0.09 + i * 0.03, 0.91, 0.1 + (i % 2) * 0.05]);
+      // eckiger Schornstein mit Metallkappe
+      part(g, BG.box, X.brickRed, [0.2, 0.56, 0.2], [-0.2, 0.98, -0.2]);
+      part(g, BG.box, X.darkMetal, [0.24, 0.05, 0.24], [-0.2, 1.1, -0.2]);
+      part(g, BG.box, X.darkMetal, [0.25, 0.06, 0.25], [-0.2, 1.28, -0.2]);
+      part(g, BG.box, X.soot, [0.14, 0.01, 0.14], [-0.2, 1.315, -0.2]);
+      g.userData.ember = mouth;
+      g.userData.embers = ports;
+      g.userData.flames = flames;
+      g.userData.smoke = new THREE.Vector3(-0.2, 1.34, -0.2);
     } else if (kind === 'hochofen') {
       // Hochofen: hoher Ziegelturm mit Eisenringen, Haube, hoher Schornstein, Kohlebunker
       part(g, new THREE.CylinderGeometry(0.22, 0.29, 0.85, 18), X.brickDark, [1, 1, 1], [0, 0.505, 0]);
@@ -861,7 +910,7 @@ function create(canvas) {
       const model = makeBuilding(kind);
       if (kind === 'band') model.scale.setScalar(1.1);
       icon.scene.add(model);
-      const tall = kind === 'bohrer' || kind === 'hochofen' ? 0.15 : kind === 'zentrifuge' || kind === 'chemiewerk' || kind === 'montagehalle' ? 0.05 : 0;
+      const tall = kind === 'bohrer' || kind === 'hochofen' ? 0.15 : kind === 'schmelze' ? 0.1 : kind === 'zentrifuge' || kind === 'chemiewerk' || kind === 'montagehalle' ? 0.05 : 0;
       icon.cam.position.set(1.55, 1.75 + tall, 2.1);
       icon.cam.lookAt(0, 0.32 + tall, 0);
       icon.r.render(icon.scene, icon.cam);
@@ -1238,6 +1287,16 @@ function create(canvas) {
         // Glut leuchtet nur, wenn der Ofen arbeitet
         u.ember.material = busyItem ? BM.ember : BM.darkMetal;
         if (u.ember2) u.ember2.visible = !!busyItem;
+        if (u.embers) for (const e of u.embers) e.material = busyItem ? BM.ember : BM.darkMetal;
+      }
+      if (u.flames) {
+        u.flames.forEach((f, i) => {
+          f.visible = !!busyItem;
+          if (busyItem) {
+            const k = f.userData.base * (0.85 + 0.25 * Math.abs(Math.sin(t * 9 + i * 2.1 + id)));
+            f.scale.set(0.08 * f.userData.base, 0.2 * k, 0.08 * f.userData.base);
+          }
+        });
       }
       if (u.ram) u.ram.position.y = busyItem ? 0.34 + Math.abs(Math.cos(t * 5 + id)) * 0.22 : 0.5;
       if (u.hammer) u.hammer.rotation.z = busyItem ? -1.3 + Math.max(0, Math.sin(t * 7 + id)) * 0.9 : -1.3;
@@ -1286,6 +1345,19 @@ function create(canvas) {
       const [wx, wy, ang] = b && s.beltPoint ? s.beltPoint(b, p) : [x + 0.5, y + 0.5, 0];
       q.setFromAxisAngle(up, -ang);
       v.set(wx, BELT_TOP + pool.lift, wy);
+      sc.set(1, 1, 1);
+      m4.compose(v, q, sc);
+      pool.inst.setMatrixAt(pool.n++, m4);
+    }
+    const ci = s.crossItems || [];
+    for (let i = 0; i < ci.length; i += 5) {
+      const pool = itemPool(ci[i + 2], s.defs);
+      if (!pool || pool.n >= 3000) continue;
+      const d = ci[i + 4];
+      const [dx, dy] = DIRS[d];
+      const p = Math.min(1, ci[i + 3] + (ci[i + 3] < 1 ? s.beltSpeed * dt : 0));
+      q.setFromAxisAngle(up, -d * Math.PI / 2);
+      v.set(ci[i] + 0.5 + dx * (p - 0.5), BELT_TOP + pool.lift + (d % 2 ? 0.01 : 0), ci[i + 1] + 0.5 + dy * (p - 0.5));
       sc.set(1, 1, 1);
       m4.compose(v, q, sc);
       pool.inst.setMatrixAt(pool.n++, m4);
