@@ -6,6 +6,7 @@ Ein kooperatives Fabrikbau-Spiel im Browser. Mehrere Leute bauen gemeinsam in de
 <p align="center"><img src="docs/screenshot-gebaeude.png" width="720" alt="Gebäude aus der Nähe"></p>
 <p align="center"><img src="docs/screenshot-karte.png" width="720" alt="Die große Karte mit Fluss, Seen und Wäldern"></p>
 <p align="center"><img src="docs/screenshot-kurven.png" width="720" alt="Bandkurven und Geldanzeige"></p>
+<p align="center"><img src="docs/screenshot-kreuzung.png" width="720" alt="Automatische Kreuzung"></p>
 <p align="center"><img src="docs/screenshot-techbaum.png" width="720" alt="Techbaum"></p>
 
 ## Apps herunterladen
@@ -59,6 +60,8 @@ Gebaut wird mit **Talern** (Anzeige oben rechts). Jede Lieferung an die Zentrale
 ### Förderbänder
 
 Bänder biegen sich von selbst: Wird ein Band nicht von hinten, sondern von der Seite beliefert, wird es zur Kurve. Die Gegenstände laufen sichtbar um die Kurve.
+
+Zieht man ein Band quer über ein bestehendes Band, entsteht automatisch eine **Kreuzung**: Beide Bänder laufen geradeaus weiter, ohne sich zu vermischen. Eine Kreuzung kostet 4 Taler. Wer am Anfang oder Ende eines Zugs auf einem Band landet, dreht es wie bisher nur.
 
 ### Rohstoffe
 

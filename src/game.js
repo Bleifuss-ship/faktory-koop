@@ -165,6 +165,8 @@ const BUILDINGS = {
   fabrikator: { name: 'Fabrikator', key: 'v', desc: 'Elektronik und Maschinenteile.' },
   zentrifuge: { name: 'Zentrifuge', key: 'b', desc: 'Uranerz → Uranpellet.' },
   montagehalle: { name: 'Montagehalle', key: 'n', desc: 'Drei Bauteile → große Baugruppen.' },
+  // Entsteht automatisch, wenn man ein Band quer über ein anderes zieht (nicht in der Werkzeugleiste)
+  kreuzung: { name: 'Kreuzung', key: '', hidden: true, desc: 'Zwei Bänder kreuzen sich, beide laufen geradeaus weiter.' },
 };
 
 // Techbaum: Jede Technik braucht ihre Vorgänger und kostet Gegenstände aus dem Lager der Zentrale.
@@ -201,7 +203,7 @@ const TECHS = [
 // --- Geld ---
 // Baukosten in Talern. Abreißen gibt den vollen Preis zurück.
 const COSTS = {
-  band: 2, verteiler: 20, bohrer: 25, saege: 40, schmelze: 60, presse: 120, brecher: 150,
+  band: 2, kreuzung: 4, verteiler: 20, bohrer: 25, saege: 40, schmelze: 60, presse: 120, brecher: 150,
   hochofen: 300, werkbank: 400, chemiewerk: 800, fabrikator: 1500, zentrifuge: 2500, montagehalle: 5000,
 };
 const START_MONEY = 300;
@@ -477,14 +479,28 @@ class World {
   }
 
   // Gibt null bei Erfolg zurück, sonst einen Fehlertext.
-  place(kind, x, y, dir) {
-    if (!BUILDINGS[kind]) return 'Unbekanntes Gebäude';
+  place(kind, x, y, dir, opts = {}) {
+    if (!BUILDINGS[kind] || BUILDINGS[kind].hidden) return 'Unbekanntes Gebäude';
     if (!this.unlocked().includes(kind)) return 'Noch nicht erforscht';
     if (!this.inBounds(x, y)) return 'Außerhalb der Karte';
     dir = ((dir | 0) % 4 + 4) % 4;
     const existing = this.at(x, y);
     if (existing) {
       // Bänder dürfen gedreht werden, alles andere nicht
+      // Quer über ein Band gezogen: daraus wird eine Kreuzung
+      if (kind === 'band' && existing.kind === 'band' && opts.cross && existing.dir % 2 !== dir % 2) {
+        const extra = COSTS.kreuzung - COSTS.band;
+        if (this.money < extra) return `Nicht genug Geld: Eine Kreuzung kostet ${COSTS.kreuzung} Taler`;
+        this.money -= extra;
+        this.grid.delete(this.key(x, y));
+        this.buildings.delete(existing.id);
+        this.changes.push({ op: 'del', id: existing.id });
+        const k = this._add({ kind: 'kreuzung', x, y, dir: existing.dir });
+        // Was gerade auf dem alten Band lag, fährt in seiner Richtung weiter
+        if (existing.state.item) k.state[existing.dir % 2 ? 'v' : 'h'] = { item: existing.state.item, p: existing.state.p || 0, d: existing.dir };
+        return null;
+      }
+      if (existing.kind === 'kreuzung' && kind === 'band') return null;
       if (existing.kind === kind && kind === 'band') {
         if (existing.dir !== dir) {
           existing.dir = dir;
@@ -518,6 +534,11 @@ class World {
     if (b.kind === 'zentrale') return true;
     const [dx, dy] = DIRS[b.dir];
     const fromFront = b.x + dx === fx && b.y + dy === fy;
+    if (b.kind === 'kreuzung') {
+      const d = DIRS.findIndex(([x, y]) => x === b.x - fx && y === b.y - fy);
+      if (d < 0) return false;
+      return !b.state[d % 2 ? 'v' : 'h'];
+    }
     if (b.kind === 'band' || b.kind === 'verteiler') {
       // Nicht von dem Feld annehmen, in das das Gebäude zeigt (frontal)
       return !b.state.item && !fromFront;
@@ -533,8 +554,9 @@ class World {
     });
   }
 
-  insert(b, item) {
+  insert(b, item, d) {
     if (b.kind === 'zentrale') { this.deliver(item); return; }
+    if (b.kind === 'kreuzung') { b.state[d % 2 ? 'v' : 'h'] = { item, p: 0, d }; return; }
     if (b.kind === 'band') { b.state.item = item; b.state.p = 0; return; }
     if (b.kind === 'verteiler') { b.state.item = item; return; }
     const buf = (b.state.buf = b.state.buf || {});
@@ -557,7 +579,7 @@ class World {
     const t = this.at(tx, ty);
     if (!t || t === b) return false;
     if (!this.accepts(t, item, b.x, b.y)) return false;
-    this.insert(t, item);
+    this.insert(t, item, d);
     return true;
   }
 
@@ -576,6 +598,17 @@ class World {
               const item = s.item;
               s.item = null;
               if (!this.push(b, item)) { s.item = item; }
+            }
+          }
+          break;
+        case 'kreuzung':
+          for (const slot of ['h', 'v']) {
+            const it = s[slot];
+            if (!it) continue;
+            if (it.p < 1) it.p = Math.min(1, it.p + beltSpeed);
+            if (it.p >= 1) {
+              s[slot] = null;
+              if (!this.push(b, it.item, it.d)) s[slot] = it;
             }
           }
           break;
@@ -633,11 +666,14 @@ class World {
   snapshot() {
     const items = [];
     const busy = [];
+    const cross = [];
     for (const b of this.buildings.values()) {
-      if (b.kind === 'band' && b.state.item) items.push(b.x, b.y, b.state.item, Math.round(b.state.p * 100) / 100);
+      if (b.kind === 'kreuzung') {
+        for (const slot of ['h', 'v']) { const it = b.state[slot]; if (it) cross.push(b.x, b.y, it.item, Math.round(it.p * 100) / 100, it.d); }
+      } else if (b.kind === 'band' && b.state.item) items.push(b.x, b.y, b.state.item, Math.round(b.state.p * 100) / 100);
       else if (b.state.recipe || b.state.out) busy.push(b.id, b.state.recipe ? b.state.recipe.out : b.state.out);
     }
-    return { items, busy };
+    return { items, busy, cross };
   }
 
   fullState() {
@@ -659,7 +695,7 @@ class World {
       w: this.w, h: this.h, seed: this.seed, tiles: this.tiles, research: this.research, money: this.money,
       buildings: [...this.buildings.values()].filter((b) => b.kind !== 'zentrale').map((b) => ({
         kind: b.kind, x: b.x, y: b.y, dir: b.dir,
-        state: { item: b.state.item || null, p: b.state.p || 0, buf: b.state.buf, out: b.state.out || null, next: b.state.next || 0 },
+        state: { item: b.state.item || null, p: b.state.p || 0, buf: b.state.buf, out: b.state.out || null, next: b.state.next || 0, h: b.state.h || null, v: b.state.v || null },
       })),
     };
   }
@@ -693,7 +729,8 @@ class World {
       const buf = {};
       for (const [k, n] of Object.entries(st.buf || {})) if (ITEMS[k] && n > 0) buf[k] = n;
       if (!BUILDINGS[b.kind] || w.at(b.x + ox, b.y + oy)) continue;
-      w._add({ kind: b.kind, x: b.x + ox, y: b.y + oy, dir: b.dir, state: { item: ok(st.item), p: st.p || 0, buf, out: ok(st.out), next: st.next || 0 } }, true);
+      const slot = (q) => (q && ITEMS[q.item] && q.d >= 0 && q.d < 4 ? { item: q.item, p: q.p || 0, d: q.d } : null);
+      w._add({ kind: b.kind, x: b.x + ox, y: b.y + oy, dir: b.dir, state: { item: ok(st.item), p: st.p || 0, buf, out: ok(st.out), next: st.next || 0, h: slot(st.h), v: slot(st.v) } }, true);
     }
     return w;
   }
