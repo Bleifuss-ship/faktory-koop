@@ -70,8 +70,10 @@ test('Techbaum ist zusammenhängend und alle Kosten sind herstellbar', () => {
 
 test('Bonus macht Bänder schneller', () => {
   const w = makeWorld();
-  w.research.done.push('logistik', 'baender1');
-  assert.strictEqual(w.bonus('band'), 1.5);
+  w.research.done.push('logistik');
+  assert.strictEqual(w.bonus('band'), 1.25);
+  w.research.done.push('baender1');
+  assert.strictEqual(w.bonus('band'), 1.25 * 1.5);
 });
 
 test('Hochofen braucht beide Zutaten', () => {
@@ -278,4 +280,53 @@ test('Kreuzung: von Hand gesetzt, beide Richtungen laufen geradeaus', () => {
   assert.strictEqual(w.at(5, 5).kind, 'kreuzung');
   const w2 = World.fromJSON(JSON.parse(JSON.stringify(w.toJSON())));
   assert.ok([...w2.buildings.values()].some((b) => b.kind === 'kreuzung'));
+});
+
+test('Zusammenführer: drei Bänder werden gerecht auf eines zusammengeführt', () => {
+  const tiles = '.'.repeat(400).split('');
+  tiles[5 * 20 + 1] = 'e'; // Eisen links (hinten)
+  tiles[1 * 20 + 5] = 'k'; // Kupfer oben (links vom Zusammenführer)
+  tiles[9 * 20 + 5] = 't'; // Stein unten (rechts)
+  const w = new World({ w: 20, h: 20, seed: 1, tiles: tiles.join('') });
+  w.money = 1000;
+  assert.ok(w.unlocked().includes('zusammenfuehrer') && w.unlocked().includes('verteiler'));
+  w.place('bohrer', 1, 5, 0); for (let x = 2; x <= 4; x++) w.place('band', x, 5, 0);
+  w.place('bohrer', 5, 1, 1); for (let y = 2; y <= 4; y++) w.place('band', 5, y, 1);
+  w.place('bohrer', 5, 9, 3); for (let y = 6; y <= 8; y++) w.place('band', 5, y, 3);
+  // erst ein Band legen, dann den Zusammenführer direkt darauf setzen
+  w.place('band', 5, 5, 0);
+  const m0 = w.money;
+  assert.strictEqual(w.place('zusammenfuehrer', 5, 5, 0), null);
+  assert.strictEqual(w.at(5, 5).kind, 'zusammenfuehrer');
+  assert.strictEqual(w.money, m0 - (DEFS.COSTS.zusammenfuehrer - DEFS.COSTS.band));
+  w.place('band', 6, 5, 0);
+  const count = {};
+  for (let i = 0; i < 1500; i++) {
+    w.step();
+    // Band dahinter als Senke: abnehmen, was ankommt
+    const b = w.at(6, 5);
+    if (b.state.item) { count[b.state.item] = (count[b.state.item] || 0) + 1; b.state.item = null; }
+  }
+  const n = ['eisenerz', 'kupfererz', 'stein'].map((it) => count[it] || 0);
+  assert.ok(Math.min(...n) > 10 && Math.max(...n) - Math.min(...n) <= 2, 'gerecht verteilt: ' + JSON.stringify(count));
+  // Speichern und Laden behält den Zusammenführer
+  const w2 = World.fromJSON(JSON.parse(JSON.stringify(w.toJSON())));
+  assert.ok([...w2.buildings.values()].some((b) => b.kind === 'zusammenfuehrer'));
+});
+
+test('Verteiler direkt auf ein Band setzen teilt in drei Richtungen', () => {
+  const w = makeWorld();
+  w.money = 1000;
+  w.place('band', 5, 5, 0);
+  assert.strictEqual(w.place('verteiler', 5, 5, 0), null);
+  const v = w.at(5, 5);
+  assert.strictEqual(v.kind, 'verteiler');
+  w.place('band', 6, 5, 0); w.place('band', 5, 6, 1); w.place('band', 5, 4, 3);
+  const seen = new Set();
+  for (let i = 0; i < 3; i++) {
+    w.insert(v, 'bretter');
+    w.step();
+    for (const [x, y] of [[6, 5], [5, 6], [5, 4]]) if (w.at(x, y).state.item) seen.add(x + ',' + y);
+  }
+  assert.strictEqual(seen.size, 3);
 });

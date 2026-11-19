@@ -157,7 +157,8 @@ const BUILDINGS = {
   bohrer: { name: 'Bohrer', key: '2', desc: 'Auf ein Vorkommen stellen (auch Wald). Gibt Rohstoffe nach vorne aus.' },
   saege: { name: 'Sägewerk', key: '3', desc: 'Holz → Bretter.' },
   schmelze: { name: 'Schmelzofen', key: '4', desc: 'Erz, Stein, Sand → Barren, Ziegel, Glas.' },
-  verteiler: { name: 'Verteiler', key: '5', desc: 'Verteilt Gegenstände abwechselnd nach vorne, links und rechts.' },
+  verteiler: { name: 'Verteiler', key: '5', desc: 'Teilt ein Band auf: Gegenstände gehen abwechselnd nach vorne, rechts und links. Auch direkt auf ein Band setzbar.' },
+  zusammenfuehrer: { name: 'Zusammenführer', key: 'z', desc: 'Führt Bänder von hinten, links und rechts gerecht abwechselnd auf ein Band nach vorne zusammen. Auch direkt auf ein Band setzbar.' },
   presse: { name: 'Presse', key: '6', desc: 'Barren → Zahnrad, Draht, Blech.' },
   brecher: { name: 'Steinbrecher', key: '7', desc: 'Zermahlt Stein, Bauxit und Schwefel.' },
   hochofen: { name: 'Hochofen', key: '8', desc: 'Barren oder Erz + Kohle → Stahl, Wolfram, Aluminium.' },
@@ -171,8 +172,8 @@ const BUILDINGS = {
 // Techbaum: Jede Technik braucht ihre Vorgänger und kostet Gegenstände aus dem Lager der Zentrale.
 // col/row bestimmen nur die Position in der Anzeige.
 const TECHS = [
-  { id: 'grundlagen', name: 'Grundlagen', req: [], cost: {}, unlock: ['band', 'kreuzung', 'bohrer', 'saege', 'schmelze'], col: 0, row: 3, text: 'Bänder, Kreuzungen, Bohrer, Sägewerk und Schmelzofen.' },
-  { id: 'logistik', name: 'Logistik', req: ['grundlagen'], cost: { bretter: 20, ziegel: 10 }, unlock: ['verteiler'], col: 1, row: 1, text: 'Schaltet den Verteiler frei.' },
+  { id: 'grundlagen', name: 'Grundlagen', req: [], cost: {}, unlock: ['band', 'kreuzung', 'verteiler', 'zusammenfuehrer', 'bohrer', 'saege', 'schmelze'], col: 0, row: 3, text: 'Bänder, Kreuzungen, Verteiler, Zusammenführer, Bohrer, Sägewerk und Schmelzofen.' },
+  { id: 'logistik', name: 'Logistik', req: ['grundlagen'], cost: { bretter: 20, ziegel: 10 }, bonus: { band: 1.25 }, col: 1, row: 1, text: 'Bänder laufen 25 % schneller.' },
   { id: 'metallbau', name: 'Metallbau', req: ['grundlagen'], cost: { eisenbarren: 20, bretter: 10 }, unlock: ['presse'], col: 1, row: 3, text: 'Schaltet die Presse frei.' },
   { id: 'steinbruch', name: 'Steinbruch', req: ['grundlagen'], cost: { ziegel: 20, eisenbarren: 10 }, unlock: ['brecher'], col: 1, row: 5, text: 'Schaltet den Steinbrecher frei (Kies, Tonerde, Schwefelpulver).' },
   { id: 'baender1', name: 'Schnelle Bänder', req: ['logistik'], cost: { eisenbarren: 30, ziegel: 20 }, bonus: { band: 1.5 }, col: 2, row: 0, text: 'Bänder laufen 50 % schneller.' },
@@ -201,8 +202,11 @@ const TECHS = [
 ];
 // --- Geld ---
 // Baukosten in Talern. Abreißen gibt den vollen Preis zurück.
+// Bandteile: dürfen ins Wasser und direkt auf ein Band gesetzt werden
+const BELT_PARTS = ['kreuzung', 'verteiler', 'zusammenfuehrer'];
+
 const COSTS = {
-  band: 2, kreuzung: 4, verteiler: 20, bohrer: 25, saege: 40, schmelze: 60, presse: 120, brecher: 150,
+  band: 2, kreuzung: 4, verteiler: 20, zusammenfuehrer: 20, bohrer: 25, saege: 40, schmelze: 60, presse: 120, brecher: 150,
   hochofen: 300, werkbank: 400, chemiewerk: 800, fabrikator: 1500, zentrifuge: 2500, montagehalle: 5000,
 };
 const START_MONEY = 300;
@@ -487,16 +491,23 @@ class World {
     if (existing) {
       // Bänder dürfen gedreht werden, alles andere nicht
       // Kreuzung direkt auf ein Band gesetzt: das Band wird ersetzt
-      if (kind === 'kreuzung' && existing.kind === 'band') {
-        const extra = COSTS.kreuzung - COSTS.band;
-        if (this.money < extra) return `Nicht genug Geld: Eine Kreuzung kostet ${COSTS.kreuzung} Taler`;
+      // Verteiler und Zusammenführer ebenso, sie behalten die gewählte Richtung
+      if (BELT_PARTS.includes(kind) && existing.kind === 'band') {
+        const extra = COSTS[kind] - COSTS.band;
+        if (this.money < extra) return `Nicht genug Geld: ${BUILDINGS[kind].name} kostet ${COSTS[kind]} Taler`;
         this.money -= extra;
         this.grid.delete(this.key(x, y));
         this.buildings.delete(existing.id);
         this.changes.push({ op: 'del', id: existing.id });
-        const k = this._add({ kind: 'kreuzung', x, y, dir: existing.dir });
-        // Was gerade auf dem alten Band lag, fährt in seiner Richtung weiter
-        if (existing.state.item) k.state[existing.dir % 2 ? 'v' : 'h'] = { item: existing.state.item, p: existing.state.p || 0, d: existing.dir };
+        const it = existing.state.item;
+        if (kind === 'kreuzung') {
+          const k = this._add({ kind, x, y, dir: existing.dir });
+          // Was gerade auf dem alten Band lag, fährt in seiner Richtung weiter
+          if (it) k.state[existing.dir % 2 ? 'v' : 'h'] = { item: it, p: existing.state.p || 0, d: existing.dir };
+        } else {
+          const k = this._add({ kind, x, y, dir });
+          if (it) k.state.item = it;
+        }
         return null;
       }
       if (existing.kind === kind && kind === 'band') {
@@ -509,7 +520,7 @@ class World {
       return 'Feld ist belegt';
     }
     if (kind === 'bohrer' && !DEPOSITS[this.tileAt(x, y)]) return 'Bohrer nur auf Vorkommen';
-    if (kind !== 'band' && kind !== 'kreuzung' && this.tileAt(x, y) === WATER) return 'Im Wasser gehen nur Förderbänder';
+    if (kind !== 'band' && !BELT_PARTS.includes(kind) && this.tileAt(x, y) === WATER) return 'Im Wasser gehen nur Förderbänder und Bandteile';
     const cost = COSTS[kind] || 0;
     if (this.money < cost) return `Nicht genug Geld: ${BUILDINGS[kind].name} kostet ${cost} Taler`;
     this.money -= cost;
@@ -537,6 +548,12 @@ class World {
       if (d < 0) return false;
       return !b.state[d % 2 ? 'v' : 'h'];
     }
+    if (b.kind === 'zusammenfuehrer') {
+      // Je Eingang (hinten, links, rechts) ein Platz, vorne ist der Ausgang
+      if (fromFront) return false;
+      const d = DIRS.findIndex(([x, y]) => x === b.x - fx && y === b.y - fy);
+      return d >= 0 && !(b.state.q && b.state.q[d]);
+    }
     if (b.kind === 'band' || b.kind === 'verteiler') {
       // Nicht von dem Feld annehmen, in das das Gebäude zeigt (frontal)
       return !b.state.item && !fromFront;
@@ -557,6 +574,7 @@ class World {
     if (b.kind === 'kreuzung') { b.state[d % 2 ? 'v' : 'h'] = { item, p: 0, d }; return; }
     if (b.kind === 'band') { b.state.item = item; b.state.p = 0; return; }
     if (b.kind === 'verteiler') { b.state.item = item; return; }
+    if (b.kind === 'zusammenfuehrer') { (b.state.q = b.state.q || {})[d] = item; return; }
     const buf = (b.state.buf = b.state.buf || {});
     buf[item] = (buf[item] || 0) + 1;
   }
@@ -624,6 +642,20 @@ class World {
             }
           }
           break;
+        case 'zusammenfuehrer': {
+          // Eingänge reihum abfragen, damit jedes Band gleich oft drankommt
+          const q = s.q || {};
+          if (!s.item) {
+            const order = [b.dir, (b.dir + 1) % 4, (b.dir + 3) % 4];
+            const start = s.next || 0;
+            for (let i = 0; i < 3; i++) {
+              const k = (start + i) % 3;
+              if (q[order[k]]) { s.item = q[order[k]]; delete q[order[k]]; s.next = (k + 1) % 3; break; }
+            }
+          }
+          if (s.item && this.push(b, s.item)) s.item = null;
+          break;
+        }
         case 'bohrer':
           if (!s.out) {
             s.t = (s.t || 0) + 1;
@@ -693,7 +725,7 @@ class World {
       w: this.w, h: this.h, seed: this.seed, tiles: this.tiles, research: this.research, money: this.money,
       buildings: [...this.buildings.values()].filter((b) => b.kind !== 'zentrale').map((b) => ({
         kind: b.kind, x: b.x, y: b.y, dir: b.dir,
-        state: { item: b.state.item || null, p: b.state.p || 0, buf: b.state.buf, out: b.state.out || null, next: b.state.next || 0, h: b.state.h || null, v: b.state.v || null },
+        state: { item: b.state.item || null, p: b.state.p || 0, buf: b.state.buf, out: b.state.out || null, next: b.state.next || 0, h: b.state.h || null, v: b.state.v || null, q: b.state.q || null },
       })),
     };
   }
@@ -728,12 +760,13 @@ class World {
       for (const [k, n] of Object.entries(st.buf || {})) if (ITEMS[k] && n > 0) buf[k] = n;
       if (!BUILDINGS[b.kind] || w.at(b.x + ox, b.y + oy)) continue;
       const slot = (q) => (q && ITEMS[q.item] && q.d >= 0 && q.d < 4 ? { item: q.item, p: q.p || 0, d: q.d } : null);
-      w._add({ kind: b.kind, x: b.x + ox, y: b.y + oy, dir: b.dir, state: { item: ok(st.item), p: st.p || 0, buf, out: ok(st.out), next: st.next || 0, h: slot(st.h), v: slot(st.v) } }, true);
+      const queue = (q) => { const r = {}; if (q) for (const d of ['0', '1', '2', '3']) if (ok(q[d])) r[d] = q[d]; return r; };
+      w._add({ kind: b.kind, x: b.x + ox, y: b.y + oy, dir: b.dir, state: { item: ok(st.item), p: st.p || 0, buf, out: ok(st.out), next: st.next || 0, h: slot(st.h), v: slot(st.v), q: queue(st.q) } }, true);
     }
     return w;
   }
 }
 
-const DEFS = { COSTS, VALUES, DIRS, DEPOSITS, WATER, ITEMS, BUILDINGS, RECIPES, TECHS, MACHINES };
+const DEFS = { BELT_PARTS, COSTS, VALUES, DIRS, DEPOSITS, WATER, ITEMS, BUILDINGS, RECIPES, TECHS, MACHINES };
 
 module.exports = { World, DEFS, generateMap, TECHS };
