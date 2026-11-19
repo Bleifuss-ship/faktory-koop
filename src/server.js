@@ -134,7 +134,7 @@ function startServer(opts = {}) {
         case 'place': {
           const cells = Array.isArray(msg.cells) ? msg.cells.slice(0, 200) : [msg];
           for (const c of cells) {
-            const err = w.place(String(msg.kind), c.x | 0, c.y | 0, c.dir | 0, { cross: !!c.cross });
+            const err = w.place(String(msg.kind), c.x | 0, c.y | 0, c.dir | 0);
             if (err && (cells.length === 1 || err.startsWith('Nicht genug Geld'))) { send(ws, { t: 'error', text: err }); if (cells.length > 1) break; }
           }
           room.dirty = true;
