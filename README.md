@@ -6,7 +6,7 @@ Ein kooperatives Fabrikbau-Spiel im Browser. Mehrere Leute bauen gemeinsam in de
 <p align="center"><img src="docs/screenshot-gebaeude.png" width="720" alt="Gebäude aus der Nähe"></p>
 <p align="center"><img src="docs/screenshot-karte.png" width="720" alt="Die große Karte mit Fluss, Seen und Wäldern"></p>
 <p align="center"><img src="docs/screenshot-kurven.png" width="720" alt="Bandkurven und Geldanzeige"></p>
-<p align="center"><img src="docs/screenshot-kreuzung.png" width="720" alt="Automatische Kreuzung"></p>
+<p align="center"><img src="docs/screenshot-kreuzung.png" width="720" alt="Kreuzung"></p>
 <p align="center"><img src="docs/screenshot-techbaum.png" width="720" alt="Techbaum"></p>
 
 ## Apps herunterladen
@@ -61,7 +61,7 @@ Gebaut wird mit **Talern** (Anzeige oben rechts). Jede Lieferung an die Zentrale
 
 Bänder biegen sich von selbst: Wird ein Band nicht von hinten, sondern von der Seite beliefert, wird es zur Kurve. Die Gegenstände laufen sichtbar um die Kurve.
 
-Zieht man ein Band quer über ein bestehendes Band, entsteht automatisch eine **Kreuzung**: Beide Bänder laufen geradeaus weiter, ohne sich zu vermischen. Eine Kreuzung kostet 4 Taler. Wer am Anfang oder Ende eines Zugs auf einem Band landet, dreht es wie bisher nur.
+Eine **Kreuzung** setzt man von Hand: Im Bau-Menü die Kreuzung wählen (Taste **K**) und auf ein freies Feld oder direkt auf ein vorhandenes Band setzen. Beide Richtungen laufen dann geradeaus weiter, ohne sich zu vermischen. Eine Kreuzung kostet 4 Taler und darf auch auf Wasser stehen. Zieht man ein Band über ein anderes, wird es nur gedreht, eine Kreuzung entsteht nie von selbst. Kurven entstehen weiterhin automatisch.
 
 ### Rohstoffe
 
@@ -69,7 +69,7 @@ Elf Rohstoffe: Holz (Wald), Stein, Eisenerz, Kupfererz, Kohle, Quarzsand (an Ufe
 
 ### Die Karte
 
-Neue Welten sind 160 × 160 Felder groß (vorher 80 × 80) und werden mit Rauschen natürlich erzeugt: große Wälder mit Lichtungen, felsiges Hochland mit Steinfeldern, Seen und ein Fluss, Erzfelder mit unregelmäßigen Rändern. Im **Wasser** gehen nur Förderbänder (als Brücke). Unten rechts zeigt eine **Übersichtskarte** die ganze Welt; antippen oder klicken springt dorthin, Taste M blendet sie aus. Bestehende kleinere Welten werden beim Laden automatisch auf 160 × 160 erweitert: Die alte Fläche mit allen Gebäuden bleibt in der Mitte, drumherum entsteht neues Land mit Seen, Fluss und allen Erzen.
+Neue Welten sind 160 × 160 Felder groß (vorher 80 × 80) und werden mit Rauschen natürlich erzeugt: große Wälder mit Lichtungen, felsiges Hochland mit Steinfeldern, Seen und ein Fluss, Erzfelder mit unregelmäßigen Rändern. Im **Wasser** gehen nur Förderbänder (als Brücke) und Kreuzungen. Unten rechts zeigt eine **Übersichtskarte** die ganze Welt; antippen oder klicken springt dorthin, Taste M blendet sie aus. Bestehende kleinere Welten werden beim Laden automatisch auf 160 × 160 erweitert: Die alte Fläche mit allen Gebäuden bleibt in der Mitte, drumherum entsteht neues Land mit Seen, Fluss und allen Erzen.
 
 ### Produktionsketten
 
@@ -126,7 +126,7 @@ Alles, was an der Zentrale ankommt, landet im Lager. Im Techbaum (Taste T oder K
 
 | | PC | Handy |
 |---|---|---|
-| Bauen | Gebäude wählen (oder Taste 1–9, 0, V, B, N), klicken/ziehen | Gebäude wählen, tippen/ziehen |
+| Bauen | Gebäude wählen (oder Taste 1–9, 0, K, V, B, N), klicken/ziehen | Gebäude wählen, tippen/ziehen |
 | Drehen | R | ⟳ |
 | Abreißen | Rechtsklick oder X | 🗑 wählen, tippen |
 | Kamera | WASD, Leertaste/mittlere Maustaste + ziehen, Mausrad zoomt, Q/E oder 🧭 dreht | ✋ + ziehen, zwei Finger zoomen und drehen, 🧭 dreht |

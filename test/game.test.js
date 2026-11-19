@@ -236,7 +236,7 @@ test('Geld: Bauen kostet, Abreißen erstattet, Liefern bringt Geld', () => {
   assert.strictEqual(w2.money, w.money);
 });
 
-test('Kreuzung: quer gezogenes Band kreuzt, beide Richtungen laufen geradeaus', () => {
+test('Kreuzung: von Hand gesetzt, beide Richtungen laufen geradeaus', () => {
   const tiles = '.'.repeat(400).split('');
   tiles[5 * 20 + 1] = 'e'; // Eisen links
   tiles[1 * 20 + 5] = 'k'; // Kupfer oben
@@ -247,9 +247,16 @@ test('Kreuzung: quer gezogenes Band kreuzt, beide Richtungen laufen geradeaus', 
   for (let x = 2; x <= 8; x++) w.place('band', x, 5, 0);
   // senkrechte Linie x=5 von y=2..8 nach unten, kreuzt bei (5,5)
   w.place('bohrer', 5, 1, 1);
-  for (let y = 2; y <= 8; y++) assert.strictEqual(w.place('band', 5, y, 1, { cross: y === 5 }), null);
+  for (let y = 2; y <= 8; y++) if (y !== 5) assert.strictEqual(w.place('band', 5, y, 1), null);
+  // Band quer darüber ziehen dreht es nur, es entsteht keine Kreuzung von selbst
+  w.place('band', 5, 5, 1);
+  assert.strictEqual(w.at(5, 5).kind, 'band');
+  w.place('band', 5, 5, 0);
+  // Kreuzung aus dem Bau-Menü direkt auf das Band setzen
+  const m0 = w.money;
+  assert.strictEqual(w.place('kreuzung', 5, 5, 0), null);
   assert.strictEqual(w.at(5, 5).kind, 'kreuzung');
-  // ohne cross-Flag wird ein Band nur gedreht
+  assert.strictEqual(w.money, m0 - (DEFS.COSTS.kreuzung - DEFS.COSTS.band));
   w.place('band', 3, 5, 1);
   assert.strictEqual(w.at(3, 5).kind, 'band');
   w.place('band', 3, 5, 0);
@@ -266,8 +273,9 @@ test('Kreuzung: quer gezogenes Band kreuzt, beide Richtungen laufen geradeaus', 
   w.remove(5, 5);
   assert.strictEqual(w.money, before + DEFS.COSTS.kreuzung);
   // Speichern mit Kreuzung
-  w.place('band', 5, 5, 0);
-  w.place('band', 5, 5, 1, { cross: true });
+  // Kreuzung auf leerem Feld
+  assert.strictEqual(w.place('kreuzung', 5, 5, 0), null);
+  assert.strictEqual(w.at(5, 5).kind, 'kreuzung');
   const w2 = World.fromJSON(JSON.parse(JSON.stringify(w.toJSON())));
   assert.ok([...w2.buildings.values()].some((b) => b.kind === 'kreuzung'));
 });

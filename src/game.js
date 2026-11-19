@@ -153,6 +153,7 @@ const RECIPES = {
 
 const BUILDINGS = {
   band: { name: 'Förderband', key: '1', desc: 'Transportiert Gegenstände in Pfeilrichtung.' },
+  kreuzung: { name: 'Kreuzung', key: 'k', desc: 'Zwei Bänder kreuzen sich, beide laufen geradeaus weiter. Auch direkt auf ein Band setzbar.' },
   bohrer: { name: 'Bohrer', key: '2', desc: 'Auf ein Vorkommen stellen (auch Wald). Gibt Rohstoffe nach vorne aus.' },
   saege: { name: 'Sägewerk', key: '3', desc: 'Holz → Bretter.' },
   schmelze: { name: 'Schmelzofen', key: '4', desc: 'Erz, Stein, Sand → Barren, Ziegel, Glas.' },
@@ -165,14 +166,12 @@ const BUILDINGS = {
   fabrikator: { name: 'Fabrikator', key: 'v', desc: 'Elektronik und Maschinenteile.' },
   zentrifuge: { name: 'Zentrifuge', key: 'b', desc: 'Uranerz → Uranpellet.' },
   montagehalle: { name: 'Montagehalle', key: 'n', desc: 'Drei Bauteile → große Baugruppen.' },
-  // Entsteht automatisch, wenn man ein Band quer über ein anderes zieht (nicht in der Werkzeugleiste)
-  kreuzung: { name: 'Kreuzung', key: '', hidden: true, desc: 'Zwei Bänder kreuzen sich, beide laufen geradeaus weiter.' },
 };
 
 // Techbaum: Jede Technik braucht ihre Vorgänger und kostet Gegenstände aus dem Lager der Zentrale.
 // col/row bestimmen nur die Position in der Anzeige.
 const TECHS = [
-  { id: 'grundlagen', name: 'Grundlagen', req: [], cost: {}, unlock: ['band', 'bohrer', 'saege', 'schmelze'], col: 0, row: 3, text: 'Bänder, Bohrer, Sägewerk und Schmelzofen.' },
+  { id: 'grundlagen', name: 'Grundlagen', req: [], cost: {}, unlock: ['band', 'kreuzung', 'bohrer', 'saege', 'schmelze'], col: 0, row: 3, text: 'Bänder, Kreuzungen, Bohrer, Sägewerk und Schmelzofen.' },
   { id: 'logistik', name: 'Logistik', req: ['grundlagen'], cost: { bretter: 20, ziegel: 10 }, unlock: ['verteiler'], col: 1, row: 1, text: 'Schaltet den Verteiler frei.' },
   { id: 'metallbau', name: 'Metallbau', req: ['grundlagen'], cost: { eisenbarren: 20, bretter: 10 }, unlock: ['presse'], col: 1, row: 3, text: 'Schaltet die Presse frei.' },
   { id: 'steinbruch', name: 'Steinbruch', req: ['grundlagen'], cost: { ziegel: 20, eisenbarren: 10 }, unlock: ['brecher'], col: 1, row: 5, text: 'Schaltet den Steinbrecher frei (Kies, Tonerde, Schwefelpulver).' },
@@ -480,15 +479,15 @@ class World {
 
   // Gibt null bei Erfolg zurück, sonst einen Fehlertext.
   place(kind, x, y, dir, opts = {}) {
-    if (!BUILDINGS[kind] || BUILDINGS[kind].hidden) return 'Unbekanntes Gebäude';
+    if (!BUILDINGS[kind]) return 'Unbekanntes Gebäude';
     if (!this.unlocked().includes(kind)) return 'Noch nicht erforscht';
     if (!this.inBounds(x, y)) return 'Außerhalb der Karte';
     dir = ((dir | 0) % 4 + 4) % 4;
     const existing = this.at(x, y);
     if (existing) {
       // Bänder dürfen gedreht werden, alles andere nicht
-      // Quer über ein Band gezogen: daraus wird eine Kreuzung
-      if (kind === 'band' && existing.kind === 'band' && opts.cross && existing.dir % 2 !== dir % 2) {
+      // Kreuzung direkt auf ein Band gesetzt: das Band wird ersetzt
+      if (kind === 'kreuzung' && existing.kind === 'band') {
         const extra = COSTS.kreuzung - COSTS.band;
         if (this.money < extra) return `Nicht genug Geld: Eine Kreuzung kostet ${COSTS.kreuzung} Taler`;
         this.money -= extra;
@@ -500,7 +499,6 @@ class World {
         if (existing.state.item) k.state[existing.dir % 2 ? 'v' : 'h'] = { item: existing.state.item, p: existing.state.p || 0, d: existing.dir };
         return null;
       }
-      if (existing.kind === 'kreuzung' && kind === 'band') return null;
       if (existing.kind === kind && kind === 'band') {
         if (existing.dir !== dir) {
           existing.dir = dir;
@@ -511,7 +509,7 @@ class World {
       return 'Feld ist belegt';
     }
     if (kind === 'bohrer' && !DEPOSITS[this.tileAt(x, y)]) return 'Bohrer nur auf Vorkommen';
-    if (kind !== 'band' && this.tileAt(x, y) === WATER) return 'Im Wasser gehen nur Förderbänder';
+    if (kind !== 'band' && kind !== 'kreuzung' && this.tileAt(x, y) === WATER) return 'Im Wasser gehen nur Förderbänder';
     const cost = COSTS[kind] || 0;
     if (this.money < cost) return `Nicht genug Geld: ${BUILDINGS[kind].name} kostet ${cost} Taler`;
     this.money -= cost;

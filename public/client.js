@@ -532,7 +532,15 @@
     const t = performance.now() / 1000;
     c.save();
     if (opts.alpha) c.globalAlpha = opts.alpha;
-    if (kind === 'band' && opts.curve) {
+    if (kind === 'kreuzung') {
+      // zwei gerade Bänder übereinander mit gelben Eckmarken
+      c.restore();
+      drawBuilding(c, 'band', x, y, s, 0);
+      drawBuilding(c, 'band', x, y, s, 1, opts);
+      c.save();
+      c.fillStyle = 'rgba(255,210,63,0.95)';
+      for (const [ox, oy] of [[0.04, 0.04], [0.84, 0.04], [0.04, 0.84], [0.84, 0.84]]) c.fillRect(x + ox * s, y + oy * s, s * 0.12, s * 0.12);
+    } else if (kind === 'band' && opts.curve) {
       // Kurve: Viertelkreis um die innere Ecke
       const k = opts.curve;
       c.save();
@@ -1076,11 +1084,11 @@
   function canPlace(kind, x, y) {
     if (x < 0 || y < 0 || x >= world.w || y >= world.h) return false;
     const b = world.grid.get(x + ',' + y);
-    if (b && !(b.kind === 'band' && kind === 'band')) return false;
+    if (b && !(b.kind === 'band' && (kind === 'band' || kind === 'kreuzung'))) return false;
     const tile = world.tiles[y * world.w + x];
     if (kind === 'bohrer' && !(defs && defs.DEPOSITS[tile])) return false;
-    if (kind !== 'band' && tile === '~') return false;
-    if (!b && defs && defs.COSTS && money < (defs.COSTS[kind] || 0)) return false;
+    if (kind !== 'band' && kind !== 'kreuzung' && tile === '~') return false;
+    if ((!b || kind === 'kreuzung') && defs && defs.COSTS && money < (defs.COSTS[kind] || 0)) return false;
     return true;
   }
 
@@ -1345,17 +1353,6 @@
     return { x: Math.floor(wx), y: Math.floor(wy), wx, wy };
   }
 
-  // Beim Ziehen quer über ein bestehendes Band entsteht eine Kreuzung
-  function crossCell(x, y, d) {
-    const key = x + ',' + y;
-    const c = { x, y, dir: d };
-    const b = world.grid.get(key);
-    if (drag && drag.placed && b && b.kind === 'band' && !drag.placed.has(key) && b.dir % 2 !== d % 2) c.cross = true;
-    if (drag && drag.placed && !c.cross && (!b || b.kind === 'band')) drag.placed.add(key);
-    if (c.cross) drag.placed.add(key);
-    return c;
-  }
-
   function buildAt(cell, from) {
     if (tool === 'band' && from && (from.x !== cell.x || from.y !== cell.y)) {
       // Linie von "from" nach "cell" in Einzelschritten, Bänder zeigen in Zugrichtung
@@ -1367,12 +1364,12 @@
         const dy = Math.sign(cell.y - cy);
         const step = Math.abs(cell.x - cx) >= Math.abs(cell.y - cy) ? [dx, 0] : [0, dy];
         const d = DIRS.findIndex((v) => v[0] === step[0] && v[1] === step[1]);
-        cells.push(crossCell(cx, cy, d));
+        cells.push({ x: cx, y: cy, dir: d });
         cx += step[0];
         cy += step[1];
         dir = d;
       }
-      cells.push(crossCell(cx, cy, dir));
+      cells.push({ x: cx, y: cy, dir });
       send({ t: 'place', kind: 'band', cells });
     } else {
       send({ t: 'place', kind: tool, x: cell.x, y: cell.y, dir });
@@ -1405,7 +1402,7 @@
       drag = { mode: 'erase', last: cell };
       eraseAt(cell);
     } else if (e.button === 0) {
-      drag = { mode: 'build', last: cell, placed: new Set([cell.x + ',' + cell.y]) };
+      drag = { mode: 'build', last: cell };
       buildAt(cell, null);
     }
   });
