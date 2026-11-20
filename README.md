@@ -88,7 +88,9 @@ Neue Welten sind 160 × 160 Felder groß (vorher 80 × 80) und werden mit Rausch
 
 Der **Verteiler** (Taste 5) teilt ein Band auf: Gegenstände gehen abwechselnd nach vorne, rechts und links. Der **Zusammenführer** (Taste Z) macht das Gegenteil: Er nimmt Bänder von hinten, links und rechts an und schickt alles gerecht abwechselnd nach vorne auf ein Band. Beide sind von Anfang an freigeschaltet, kosten 20 Taler und lassen sich wie die Kreuzung direkt auf ein vorhandenes Band setzen (dann zählt die gewählte Richtung).
 
-<p align="center"><img src="docs/screenshot-zusammenfuehrer.png" width="720" alt="Zusammenführer: drei Bänder werden zu einem"></p> Die **Montagehalle** braucht drei Zutaten gleichzeitig, also am besten von hinten, links und rechts anliefern.
+Die **Montagehalle** braucht drei Zutaten gleichzeitig, also am besten von hinten, links und rechts anliefern.
+
+<p align="center"><img src="docs/screenshot-zusammenfuehrer.png" width="720" alt="Zusammenführer: drei Bänder werden zu einem"></p>
 
 ### Techbaum
 
@@ -130,7 +132,7 @@ Alles, was an der Zentrale ankommt, landet im Lager. Im Techbaum (Taste T oder K
 |---|---|---|
 | Bauen | Gebäude wählen (oder Taste 1–9, 0, K, Z, V, B, N), klicken/ziehen | Gebäude wählen, tippen/ziehen |
 | Drehen | R | ⟳ |
-| Abreißen | Rechtsklick oder X | 🗑 wählen, tippen |
+| Abreißen | 🗑 wählen oder Taste X, klicken/ziehen | 🗑 wählen, tippen |
 | Kamera | WASD, Leertaste/mittlere Maustaste + ziehen, Mausrad zoomt, Q/E oder 🧭 dreht | ✋ + ziehen, zwei Finger zoomen und drehen, 🧭 dreht |
 
 ## Selbst bauen
