@@ -508,8 +508,9 @@
     bohrer: ['#f6a83b'],
     saege: ['#c98a4b'],
     schmelze: ['#f06a55'],
-    verteiler: ['#8a94a8'],
-    zusammenfuehrer: ['#4fb3a6'],
+    verteiler: ['#4f86f7'],
+    kreuzung: ['#f5b82e'],
+    zusammenfuehrer: ['#22b39a'],
     presse: ['#5b8ff0'],
     hochofen: ['#d94f6b'],
     werkbank: ['#3fc48a'],
@@ -548,6 +549,28 @@
     }
   }
 
+  // Gurtstück (lokal, Laufrichtung +x): Lamellen und helle Pfeile, die mitlaufen
+  function beltStrip(c, x0, y0, w, h, s, t, noArrows) {
+    c.save();
+    c.beginPath(); c.rect(x0, y0, w, h); c.clip();
+    c.fillStyle = '#4a5262';
+    c.fillRect(x0, y0, w, h);
+    const step = s / 2;
+    const off = ((t * beltSpeed * 10) % 1) * step;
+    c.fillStyle = '#414858';
+    for (let px = -s - step + (off % (s / 8)); px < s; px += s / 8) c.fillRect(px, y0, Math.max(1, s * 0.025), h);
+    if (!noArrows) {
+      c.strokeStyle = '#e4e9f2';
+      c.lineWidth = Math.max(1.5, s * 0.08);
+      c.lineCap = 'round'; c.lineJoin = 'round';
+      for (let i = -3; i <= 3; i++) {
+        const px = i * step + off - s * 0.05;
+        c.beginPath(); c.moveTo(px - s * 0.06, -s * 0.13); c.lineTo(px + s * 0.07, 0); c.lineTo(px - s * 0.06, s * 0.13); c.stroke();
+      }
+    }
+    c.restore();
+  }
+
   // Zeichnet ein Gebäude in Pixelkoordinaten (x,y = linke obere Ecke, s = Zellgröße)
   function drawBuilding(c, kind, x, y, s, d, opts = {}) {
     const size = opts.size || 1;
@@ -555,43 +578,44 @@
     const t = performance.now() / 1000;
     c.save();
     if (opts.alpha) c.globalAlpha = opts.alpha;
-    if (kind === 'kreuzung') {
-      // zwei gerade Bänder übereinander mit gelben Eckmarken
-      c.restore();
-      drawBuilding(c, 'band', x, y, s, 0);
-      drawBuilding(c, 'band', x, y, s, 1, { ...opts, openR: true, openL: true });
-      c.save();
-      c.fillStyle = 'rgba(255,210,63,0.95)';
-      for (const [ox, oy] of [[0.04, 0.04], [0.84, 0.04], [0.04, 0.84], [0.84, 0.84]]) c.fillRect(x + ox * s, y + oy * s, s * 0.12, s * 0.12);
-    } else if (kind === 'verteiler' || kind === 'zusammenfuehrer') {
-      // flaches Bandteil: Rahmen über das ganze Feld, Bandstücke, farbige Drehscheibe
-      const split = kind === 'verteiler';
+    if (kind === 'kreuzung' || kind === 'verteiler' || kind === 'zusammenfuehrer') {
+      // Bandteile: dunkler Grund, Bandstücke; Verteiler/Zusammenführer als bunter Kasten mit Öffnungen
       const col = KIND_COLORS[kind][0];
-      c.save();
       c.translate(x + s / 2, y + s / 2);
       c.rotate(d * Math.PI / 2);
-      c.fillStyle = '#c7cbd6';
+      c.fillStyle = '#353b47';
       c.fillRect(-s / 2, -s / 2, s, s);
-      c.fillStyle = '#596173';
-      c.fillRect(-s / 2, -s * 0.4, s, s * 0.8); // hinten-vorne
-      if (split) c.fillRect(-s * 0.4, 0, s * 0.8, s / 2); else c.fillRect(-s * 0.4, -s / 2, s * 0.8, s); // Seiten
-      if (split) c.fillRect(-s * 0.4, -s / 2, s * 0.8, s / 2);
-      c.fillStyle = col;
-      for (const [ox, oy] of [[-0.5, -0.5], [0.36, -0.5], [-0.5, 0.36], [0.36, 0.36]]) c.fillRect(ox * s, oy * s, s * 0.14, s * 0.14);
-      c.beginPath(); c.arc(0, 0, s * 0.27, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#ffffff';
-      c.strokeStyle = '#ffffff';
-      c.lineWidth = Math.max(1.5, s * 0.05);
-      for (const a of split ? [0, Math.PI / 2, -Math.PI / 2] : [Math.PI, Math.PI / 2, -Math.PI / 2]) {
-        c.save();
-        c.rotate(a);
-        if (split) { c.beginPath(); c.moveTo(s * 0.23, 0); c.lineTo(s * 0.12, -s * 0.07); c.lineTo(s * 0.12, s * 0.07); c.closePath(); c.fill(); }
-        else { c.beginPath(); c.moveTo(s * 0.1, 0); c.lineTo(s * 0.21, -s * 0.07); c.lineTo(s * 0.21, s * 0.07); c.closePath(); c.fill(); }
-        c.restore();
+      const stub = (a, out) => { c.save(); c.rotate(a); beltStrip(c, out ? 0 : -s / 2, -s * 0.4, s / 2, s * 0.8, s, t); c.restore(); };
+      if (kind === 'kreuzung') {
+        beltStrip(c, -s / 2, -s * 0.4, s, s * 0.8, s, t);
+        c.save(); c.rotate(Math.PI / 2); beltStrip(c, -s / 2, -s * 0.4, s, s * 0.8, s, t); c.restore();
+        c.fillStyle = col;
+        for (const [ox, oy] of [[-0.5, -0.5], [0.3, -0.5], [-0.5, 0.3], [0.3, 0.3]]) { roundRect(c, ox * s, oy * s, s * 0.2, s * 0.2, s * 0.05); c.fill(); }
+      } else {
+        const split = kind === 'verteiler';
+        const ins = split ? [Math.PI] : [Math.PI, Math.PI / 2, -Math.PI / 2];
+        const outs = split ? [0, Math.PI / 2, -Math.PI / 2] : [0];
+        for (const a of ins) stub(a + Math.PI, false);
+        for (const a of outs) stub(a, true);
+        // Kasten mit Schatten
+        c.fillStyle = 'rgba(0,0,0,0.25)';
+        roundRect(c, -s * 0.33 + s * 0.04, -s * 0.33 + s * 0.05, s * 0.66, s * 0.66, s * 0.12); c.fill();
+        c.fillStyle = col;
+        roundRect(c, -s * 0.33, -s * 0.33, s * 0.66, s * 0.66, s * 0.12); c.fill();
+        c.fillStyle = 'rgba(255,255,255,0.35)';
+        roundRect(c, -s * 0.26, -s * 0.26, s * 0.52, s * 0.52, s * 0.08); c.fill();
+        // dunkle Öffnungen
+        c.fillStyle = '#2b303b';
+        for (const a of [...ins, ...outs]) { c.save(); c.rotate(a); roundRect(c, s * 0.27, -s * 0.21, s * 0.07, s * 0.42, s * 0.03); c.fill(); c.restore(); }
+        // weiße Pfeile
+        c.fillStyle = '#ffffff';
+        const arrows = split ? outs.map((a) => [a, 0.13, false]) : [...ins.map((a) => [a, 0.17, true]), [0, 0.02, false]];
+        for (const [a, r, flip] of arrows) {
+          c.save(); c.rotate(a); c.translate(r * s, 0); if (flip) c.rotate(Math.PI);
+          c.beginPath(); c.moveTo(s * 0.11, 0); c.lineTo(-s * 0.03, -s * 0.085); c.lineTo(-s * 0.03, s * 0.085); c.closePath(); c.fill();
+          c.restore();
+        }
       }
-      c.fillStyle = '#3a4150';
-      c.beginPath(); c.arc(0, 0, s * 0.07, 0, Math.PI * 2); c.fill();
-      c.restore();
     } else if (kind === 'band' && opts.curve) {
       // Kurve: Viertelkreis um die innere Ecke
       const k = opts.curve;
@@ -599,23 +623,24 @@
       c.translate(x + s / 2, y + s / 2);
       c.rotate(d * Math.PI / 2);
       const a0 = Math.PI, a1 = Math.PI + k * Math.PI / 2;
-      const arc = (w, col) => { c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'butt'; c.beginPath(); c.arc(s / 2, k * s / 2, s / 2, a0, a1, k < 0); c.stroke(); };
-      arc(s, '#c7cbd6');
-      arc(s * 0.8, '#596173');
-      c.strokeStyle = '#8791a8';
-      c.lineWidth = Math.max(1.2, s * 0.07);
+      const arc = (r, w, col) => { c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'butt'; c.beginPath(); c.arc(s / 2, k * s / 2, r, a0, a1, k < 0); c.stroke(); };
+      arc(s / 2, s, '#353b47');
+      arc(s / 2, s * 0.8, '#4a5262');
+      arc(s * 0.95, s * 0.1, '#f1f4f9');
+      c.strokeStyle = '#e4e9f2';
+      c.lineWidth = Math.max(1.5, s * 0.08);
       c.lineCap = 'round';
       c.lineJoin = 'round';
-      const off = (t * beltSpeed * 10 / 3) % (1 / 3);
-      for (let i = 0; i < 3; i++) {
-        const p = i / 3 + off;
+      const off = (t * beltSpeed * 10 / 2) % (1 / 2);
+      for (let i = 0; i < 2; i++) {
+        const p = i / 2 + off;
         const a = Math.PI + k * p * Math.PI / 2;
         const px = s / 2 + (s / 2) * Math.cos(a), py = k * s / 2 + (s / 2) * Math.sin(a);
         c.save();
         c.translate(px, py);
         c.rotate(Math.atan2(k * Math.cos(a), -k * Math.sin(a)));
         c.beginPath();
-        c.moveTo(-s * 0.09, -s * 0.15); c.lineTo(s * 0.03, 0); c.lineTo(-s * 0.09, s * 0.15);
+        c.moveTo(-s * 0.09, -s * 0.13); c.lineTo(s * 0.04, 0); c.lineTo(-s * 0.09, s * 0.13);
         c.stroke();
         c.restore();
       }
@@ -624,37 +649,13 @@
       c.save();
       c.translate(x + s / 2, y + s / 2);
       c.rotate(d * Math.PI / 2);
-      // Rahmen (Seitenschienen) und Laufband
-      // Rahmen füllt das ganze Feld, so stoßen benachbarte Bänder ohne Lücke aneinander
-      c.fillStyle = '#c7cbd6';
+      // dunkler Grund über das ganze Feld, Gurt, helle runde Seitenschienen
+      c.fillStyle = '#353b47';
       c.fillRect(-s / 2, -s / 2, s, s);
-      c.fillStyle = '#596173';
-      c.fillRect(-s / 2, -s * 0.4, s, s * 0.8);
-      // seitlich einmündende Bänder: Schiene an dieser Stelle offen
-      if (opts.openR) c.fillRect(-s * 0.4, s * 0.4, s * 0.8, s * 0.1);
-      if (opts.openL) c.fillRect(-s * 0.4, -s / 2, s * 0.8, s * 0.1);
-      c.save();
-      c.beginPath();
-      c.rect(-s / 2, -s * 0.4, s, s * 0.8);
-      c.clip();
-      c.strokeStyle = '#8791a8';
-      c.lineWidth = Math.max(1.2, s * 0.07);
-      c.lineCap = 'round';
-      c.lineJoin = 'round';
-      const step = s / 3;
-      const off = ((t * beltSpeed * 10) % 1) * step;
-      for (let i = -2; i <= 2; i++) {
-        const px = i * step + off;
-        c.beginPath();
-        c.moveTo(px - s * 0.09, -s * 0.15);
-        c.lineTo(px + s * 0.03, 0);
-        c.lineTo(px - s * 0.09, s * 0.15);
-        c.stroke();
-      }
-      c.restore();
-      // Nieten auf den Schienen
-      c.fillStyle = '#a4aab8';
-      for (const sy of [-0.45, 0.45]) for (const sx of [-0.3, 0.2]) { if ((sy > 0 && opts.openR) || (sy < 0 && opts.openL)) continue; c.beginPath(); c.arc(sx * s, sy * s, Math.max(0.8, s * 0.025), 0, Math.PI * 2); c.fill(); }
+      beltStrip(c, -s / 2, -s * 0.4, s, s * 0.8, s, t);
+      c.fillStyle = '#f1f4f9';
+      if (!opts.openR) { roundRect(c, -s / 2, s * 0.4, s, s * 0.1, s * 0.04); c.fill(); }
+      if (!opts.openL) { roundRect(c, -s / 2, -s / 2, s, s * 0.1, s * 0.04); c.fill(); }
       c.restore();
     } else if (kind === 'zentrale') {
       const pad = s * 0.12;
@@ -969,7 +970,7 @@
       if (!world.w) return;
       updateKeys();
       drawMinimap();
-      r3d.render({ world, items, crossItems, busy, beltSpeed, beltCurve, beltJoin, beltPoint, lastTickAt, hover, tool, dir, cursors, players, defs, canPlace });
+      r3d.render({ world, items, crossItems, busy, beltSpeed, beltCurve, beltJoin, beltSides, beltPoint, lastTickAt, hover, tool, dir, cursors, players, defs, canPlace });
       return;
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1036,12 +1037,8 @@
     }
     for (const b of visible) {
       if (b.kind === 'kreuzung') {
-        // zwei gerade Bänder übereinander
         const [sx, sy] = toScreen(b.x, b.y);
-        drawBuilding(ctx, 'band', sx, sy, s, 0);
-        drawBuilding(ctx, 'band', sx, sy, s, 1);
-        ctx.fillStyle = 'rgba(255,210,63,0.9)';
-        for (const [ox, oy] of [[0.08, 0.08], [0.82, 0.08], [0.08, 0.82], [0.82, 0.82]]) ctx.fillRect(sx + ox * s, sy + oy * s, s * 0.1, s * 0.1);
+        drawBuilding(ctx, 'kreuzung', sx, sy, s, 0);
         continue;
       }
       if (b.kind !== 'band') continue;

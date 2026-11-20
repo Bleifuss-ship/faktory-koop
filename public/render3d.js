@@ -236,6 +236,8 @@ function create(canvas) {
     creamDark: mat(0xd9d4c8),
     grey: mat(0xffffff, { map: railTex }),
     dark: mat(0x596173),
+    beltBase: mat(0x353b47),
+    rail: mat(0xf1f4f9),
     white: mat(0xffffff),
     wood: mat(0xa0703c),
     flame: mat(0xffb030, { emissive: 0xff7a10, emissiveIntensity: 0.9 }),
@@ -267,6 +269,9 @@ function create(canvas) {
     gear: makeGearGeometry(),
     // Bänder füllen das ganze Feld, damit benachbarte Bänder ohne Lücke aneinanderstoßen
     beltFrame: new THREE.BoxGeometry(1, 0.1, 1),
+    // runde, helle Seitenschiene eines Bands (liegt am Rand, z = ±0.45)
+    // als liegender Zylinder: rundes Profil, glatte Enden, so wirkt eine Bandreihe durchgehend
+    rail: new THREE.CylinderGeometry(0.05, 0.05, 1, 12).rotateZ(Math.PI / 2),
     beltTop: new THREE.PlaneGeometry(1, 0.8).rotateX(-Math.PI / 2),
     // verlängertes Laufband für seitliche Einmündungen: reicht über die Schiene des Zielbands
     // halbe Bandstücke für Verteiler und Zusammenführer (Mitte bis Rand), Textur im gleichen Maßstab
@@ -599,33 +604,57 @@ function create(canvas) {
     g.add(pivot);
   }
 
-  // Flache Bandteile: voller Rahmen, Bandstücke zur Mitte bzw. nach außen, farbige Mitte
+  // Bandteile im Kasten-Stil: Bandstücke laufen in einen bunten, runden Kasten mit dunklen Öffnungen
   const SIDE_ROT = { front: 0, right: -Math.PI / 2, left: Math.PI / 2, back: Math.PI };
+  const PART_COL = { verteiler: 0x4f86f7, zusammenfuehrer: 0x22b39a, kreuzung: 0xf5b82e };
+  const partMat = {}, partCap = {};
+  for (const [k, c] of Object.entries(PART_COL)) {
+    partMat[k] = mat(c);
+    partCap[k] = mat(new THREE.Color(c).lerp(new THREE.Color(0xffffff), 0.35).getHex());
+  }
+  const arrowShape = new THREE.Shape();
+  arrowShape.moveTo(0.11, 0); arrowShape.lineTo(-0.03, -0.085); arrowShape.lineTo(-0.03, 0.085); arrowShape.closePath();
+  const PG = {
+    housing: new RoundedBoxGeometry(0.66, 0.3, 0.66, 3, 0.09),
+    cap: new RoundedBoxGeometry(0.52, 0.04, 0.52, 2, 0.02),
+    mouth: new RoundedBoxGeometry(0.08, 0.17, 0.44, 2, 0.03),
+    flatArrow: new THREE.ShapeGeometry(arrowShape).rotateX(-Math.PI / 2),
+    post: new RoundedBoxGeometry(0.2, 0.16, 0.2, 2, 0.05),
+  };
   function makeBeltPart(g, kind, ghost) {
     const m = (geo, material) => new THREE.Mesh(geo, ghost || material);
-    const f = m(BG.crossFrame, M.grey); f.position.y = 0.05; g.add(f);
+    const f = m(BG.crossFrame, M.beltBase); f.position.y = 0.05; g.add(f);
+    if (kind === 'kreuzung') {
+      // zwei Bänder kreuzen sich offen, vier bunte Eckpfosten halten den Rahmen
+      const a = m(G.beltTop, beltMat); a.position.y = BELT_TOP;
+      const b = m(G.beltTop, beltMat); b.position.y = BELT_TOP + 0.004; b.rotation.y = -Math.PI / 2;
+      g.add(a, b);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+        const k = m(PG.post, partMat.kreuzung); k.position.set(sx * 0.4, 0.14, sz * 0.4); g.add(k);
+      }
+      return g;
+    }
     const split = kind === 'verteiler';
     const ins = split ? ['back'] : ['back', 'left', 'right'];
     const outs = split ? ['front', 'left', 'right'] : ['front'];
     let h = 0;
     for (const sd of ins) { const t = m(G.beltHalfIn, beltMat); t.rotation.y = SIDE_ROT[sd] + Math.PI; t.position.y = BELT_TOP + (h += 0.002); g.add(t); }
     for (const sd of outs) { const t = m(G.beltHalfOut, beltMat); t.rotation.y = SIDE_ROT[sd]; t.position.y = BELT_TOP + (h += 0.002); g.add(t); }
-    const col = ghost || M.roof[kind];
-    // farbige Drehscheibe in der Mitte mit Pfeilen in Laufrichtung
-    const ring = new THREE.Mesh(BG.cyl, col); ring.scale.set(0.5, 0.05, 0.5); ring.position.y = 0.14; g.add(ring);
-    const cap = new THREE.Mesh(BG.cyl, ghost || BM.darkMetal); cap.scale.set(0.16, 0.06, 0.16); cap.position.y = 0.17; g.add(cap);
-    for (const sd of split ? outs : ins) {
+    const body = m(PG.housing, partMat[kind]); body.position.y = 0.25; g.add(body);
+    const cap = m(PG.cap, partCap[kind]); cap.position.y = 0.41; g.add(cap);
+    // dunkle Öffnungen, wo Bänder hinein- oder herauslaufen
+    for (const sd of [...ins, ...outs]) {
       const piv = new THREE.Group(); piv.rotation.y = SIDE_ROT[sd];
-      const arrow = new THREE.Mesh(G.arrow, ghost || M.white);
-      arrow.rotation.set(Math.PI / 2, 0, split ? -Math.PI / 2 : Math.PI / 2);
-      arrow.position.set(0.17, 0.175, 0);
-      piv.add(arrow); g.add(piv);
+      const mo = m(PG.mouth, BM.darkMetal); mo.position.set(0.31, 0.2, 0); piv.add(mo);
+      g.add(piv);
     }
-    // Eckmarken in der Teilfarbe
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-      const k = new THREE.Mesh(BG.box, col); k.scale.set(0.14, 0.03, 0.14); k.position.set(sx * 0.42, 0.115, sz * 0.42); g.add(k);
+    // weiße Pfeile oben: Verteiler zeigt nach außen, Zusammenführer nach innen und vorne hinaus
+    const arrows = split ? outs.map((sd) => [sd, 0.13, 0]) : [...ins.map((sd) => [sd, 0.17, Math.PI]), ['front', 0.02, 0]];
+    for (const [sd, r, flip] of arrows) {
+      const piv = new THREE.Group(); piv.rotation.y = SIDE_ROT[sd];
+      const ar = m(PG.flatArrow, M.white); ar.position.set(r, 0.432, 0); ar.rotation.y = flip; piv.add(ar);
+      g.add(piv);
     }
-    if (split) g.userData.disc = ring; else g.userData.mergeRing = ring;
     return g;
   }
 
@@ -637,22 +666,13 @@ function create(canvas) {
     const R = ghost ? new Proxy({}, { get: () => ghost }) : M.roof;
     const m = (geo, material) => new THREE.Mesh(geo, ghost || material);
     if (kind === 'band') {
-      const f = m(G.beltFrame, M.grey); f.position.y = 0.05;
+      const f = m(G.beltFrame, M.beltBase); f.position.y = 0.05;
       const t = m(G.beltTop, beltMat); t.position.y = BELT_TOP;
       g.add(f, t);
+      for (const z of [-0.45, 0.45]) { const r = m(G.rail, M.rail); r.position.set(0, 0.12, z); g.add(r); }
       return g;
     }
-    if (kind === 'kreuzung') {
-      const f = m(BG.crossFrame, M.grey); f.position.y = 0.05;
-      const a = m(G.beltTop, beltMat); a.position.y = BELT_TOP;
-      const b = m(G.beltTop, beltMat); b.position.y = BELT_TOP + 0.006; b.rotation.y = -Math.PI / 2;
-      g.add(f, a, b);
-      for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-        const k = m(BG.box, BM.stripes); k.scale.set(0.16, 0.03, 0.16); k.position.set(sx * 0.41, 0.115, sz * 0.41); g.add(k);
-      }
-      return g;
-    }
-    if (kind === 'verteiler' || kind === 'zusammenfuehrer') return makeBeltPart(g, kind, ghost);
+    if (kind === 'verteiler' || kind === 'zusammenfuehrer' || kind === 'kreuzung') return makeBeltPart(g, kind, ghost);
     if (kind === 'zentrale') {
       const base = m(new RoundedBoxGeometry(2.7, 0.5, 2.7, 3, 0.25), M.cream);
       base.position.y = 0.25;
@@ -970,27 +990,38 @@ function create(canvas) {
   // Laufband-Textur mit Pfeilen, wird zum Animieren verschoben
   const beltTex = (() => {
     const c = document.createElement('canvas');
-    c.width = 96; c.height = 64;
+    c.width = 128; c.height = 64;
     const x = c.getContext('2d');
-    x.fillStyle = '#596173';
-    x.fillRect(0, 0, 96, 64);
-    x.strokeStyle = '#8b95ac';
-    x.lineWidth = 7;
+    x.fillStyle = '#4a5262';
+    x.fillRect(0, 0, 128, 64);
+    // Querlamellen des Gurts
+    x.fillStyle = '#414858';
+    for (let i = 0; i < 8; i++) x.fillRect(i * 16, 0, 3, 64);
+    // leichte Schattierung zu den Rändern
+    const gr = x.createLinearGradient(0, 0, 0, 64);
+    gr.addColorStop(0, 'rgba(0,0,0,0.18)'); gr.addColorStop(0.2, 'rgba(0,0,0,0)'); gr.addColorStop(0.8, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.18)');
+    x.fillStyle = gr; x.fillRect(0, 0, 128, 64);
+    // zwei kräftige, helle Pfeile pro Feld
+    x.strokeStyle = '#e4e9f2';
+    x.lineWidth = 9;
     x.lineCap = x.lineJoin = 'round';
-    for (let i = 0; i < 3; i++) {
-      const px = 14 + i * 32;
-      x.beginPath(); x.moveTo(px, 14); x.lineTo(px + 12, 32); x.lineTo(px, 50); x.stroke();
+    for (let i = 0; i < 2; i++) {
+      const px = 26 + i * 64;
+      x.beginPath(); x.moveTo(px, 16); x.lineTo(px + 16, 32); x.lineTo(px, 48); x.stroke();
     }
     const t = new THREE.CanvasTexture(c);
     t.wrapS = THREE.RepeatWrapping;
     t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 4;
     return t;
   })();
   const beltMat = mat(0xffffff, { map: beltTex });
 
   // Bänder als Instanzen (es können sehr viele werden)
   const MAX_BELTS = 6000;
-  const beltFrames = new THREE.InstancedMesh(G.beltFrame, M.grey, MAX_BELTS);
+  const beltFrames = new THREE.InstancedMesh(G.beltFrame, M.beltBase, MAX_BELTS);
+  const beltRails = new THREE.InstancedMesh(G.rail, M.rail, MAX_BELTS * 2);
+  beltRails.castShadow = beltRails.receiveShadow = true; beltRails.count = 0; scene.add(beltRails);
   const beltTops = new THREE.InstancedMesh(G.beltTop, beltMat, MAX_BELTS);
   beltFrames.receiveShadow = beltTops.receiveShadow = true;
   const beltTopsLong = new THREE.InstancedMesh(G.beltTopLong, beltMat, MAX_BELTS);
@@ -1000,22 +1031,27 @@ function create(canvas) {
 
   // Bandkurven: Viertelkreis um die innere Ecke. Lokales System wie beim geraden Band
   // (Laufrichtung +x), Zulauf von der Seite z = +0.5 (k = +1) oder z = -0.5 (k = -1).
-  const CURVE_SEG = 12;
+  const CURVE_SEG = 32;
+  // Feines Gitter (längs und quer unterteilt), damit die Pfeile in der Kurve nicht zerreißen
   function curveTopGeo(k) {
     const pos = [], uv = [], idx = [];
-    const rIn = 0.5 - 0.4, rOut = 0.5 + 0.4;
-    for (let i = 0; i <= CURVE_SEG; i++) {
-      const p = i / CURVE_SEG;
+    const rIn = 0.5 - 0.4, rOut = 0.5 + 0.4, SEG = 32, RINGS = 8;
+    for (let i = 0; i <= SEG; i++) {
+      const p = i / SEG;
       const a = Math.PI + k * p * Math.PI / 2;
-      for (const [r, v] of [[rIn, 0], [rOut, 1]]) {
+      for (let j = 0; j <= RINGS; j++) {
+        const v = j / RINGS;
+        const r = rIn + (rOut - rIn) * v;
         pos.push(0.5 + r * Math.cos(a), 0, k * 0.5 + r * Math.sin(a));
+        // Länge in Feldern entlang der Mittellinie (Viertelkreis mit Radius 0.5 ≈ 0.785)
         uv.push(p * Math.PI / 4, k > 0 ? v : 1 - v);
       }
-      if (i) {
-        const o = (i - 1) * 2;
-        if (k > 0) idx.push(o, o + 2, o + 1, o + 1, o + 2, o + 3);
-        else idx.push(o, o + 1, o + 2, o + 1, o + 3, o + 2);
-      }
+    }
+    const W = RINGS + 1;
+    for (let i = 0; i < SEG; i++) for (let j = 0; j < RINGS; j++) {
+      const a0 = i * W + j, a1 = a0 + 1, b0 = a0 + W, b1 = b0 + 1;
+      if (k > 0) idx.push(a0, b0, a1, a1, b0, b1);
+      else idx.push(a0, a1, b0, a1, b1, b0);
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -1024,26 +1060,28 @@ function create(canvas) {
     g.computeVertexNormals();
     return g;
   }
-  function curveFrameGeo(k) {
+  function curveFrameGeo(k, rIn = 0.002, rOut = 1, depth = 0.1, y = 0.1) {
     const sh = new THREE.Shape();
-    const rIn = 0.002, rOut = 1;
     const pt = (r, p) => { const a = Math.PI + k * p * Math.PI / 2; return [0.5 + r * Math.cos(a), k * 0.5 + r * Math.sin(a)]; };
     sh.moveTo(...pt(rOut, 0));
     for (let i = 1; i <= CURVE_SEG; i++) sh.lineTo(...pt(rOut, i / CURVE_SEG));
     for (let i = CURVE_SEG; i >= 0; i--) sh.lineTo(...pt(rIn, i / CURVE_SEG));
     sh.closePath();
     // Form liegt in (x, z); extrudiert nach unten, dann auf 0..0.1 gehoben
-    return new THREE.ExtrudeGeometry(sh, { depth: 0.1, bevelEnabled: false }).rotateX(Math.PI / 2).translate(0, 0.1, 0);
+    return new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: false }).rotateX(Math.PI / 2).translate(0, y, 0);
   }
-  const curveFrameMat = M.grey.clone(); curveFrameMat.side = THREE.DoubleSide;
+  const curveFrameMat = M.beltBase.clone(); curveFrameMat.side = THREE.DoubleSide;
   const curves = {};
   for (const k of [1, -1]) {
     const f = new THREE.InstancedMesh(curveFrameGeo(k), curveFrameMat, MAX_BELTS);
     const t = new THREE.InstancedMesh(curveTopGeo(k), beltMat, MAX_BELTS);
-    f.receiveShadow = t.receiveShadow = true;
-    f.count = t.count = 0;
-    scene.add(f, t);
-    curves[k] = { f, t, n: 0 };
+    // äußere, gebogene Schiene (innen läuft das Band fast bis in die Ecke)
+    const r = new THREE.InstancedMesh(curveFrameGeo(k, 0.9, 1.0, 0.08, 0.16), M.rail, MAX_BELTS);
+    const ri = new THREE.InstancedMesh(curveFrameGeo(k, 0.002, 0.1, 0.08, 0.16), M.rail, MAX_BELTS);
+    f.receiveShadow = t.receiveShadow = r.castShadow = r.receiveShadow = true;
+    f.count = t.count = r.count = ri.count = 0;
+    scene.add(f, t, r, ri);
+    curves[k] = { f, t, r, ri, n: 0 };
   }
 
   // --- Gegenstände als Instanzen je Sorte ---
@@ -1116,7 +1154,7 @@ function create(canvas) {
     buildDeposits(world);
   }
 
-  let curveFn = null, joinFn = null;
+  let curveFn = null, joinFn = null, sidesFn = null;
   function syncBuildings(world) {
     if (world.version === builtVersion) return;
     builtVersion = world.version;
@@ -1130,7 +1168,7 @@ function create(canvas) {
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
     const one = new THREE.Vector3(1, 1, 1);
-    let n = 0, nLong = 0;
+    let n = 0, nLong = 0, nRail = 0;
     curves[1].n = curves[-1].n = 0;
     for (const b of world.buildings.values()) {
       if (b.kind === 'band') {
@@ -1141,6 +1179,8 @@ function create(canvas) {
           const cv = curves[k];
           m4.compose(new THREE.Vector3(b.x + 0.5, 0, b.y + 0.5), q, one);
           cv.f.setMatrixAt(cv.n, m4);
+          cv.r.setMatrixAt(cv.n, m4);
+          cv.ri.setMatrixAt(cv.n, m4);
           m4.compose(new THREE.Vector3(b.x + 0.5, BELT_TOP, b.y + 0.5), q, one);
           cv.t.setMatrixAt(cv.n, m4);
           cv.n++;
@@ -1148,6 +1188,14 @@ function create(canvas) {
         }
         m4.compose(new THREE.Vector3(b.x + 0.5, 0.05, b.y + 0.5), q, one);
         beltFrames.setMatrixAt(n, m4);
+        // Seitenschienen, außer wo ein anderes Band seitlich einmündet
+        const open = sidesFn ? sidesFn(b) : {};
+        const [rx, ry] = [[0, 1], [-1, 0], [0, -1], [1, 0]][b.dir];
+        for (const [sgn, isOpen] of [[1, open.openR], [-1, open.openL]]) {
+          if (isOpen) continue;
+          m4.compose(new THREE.Vector3(b.x + 0.5 + rx * 0.45 * sgn, 0.12, b.y + 0.5 + ry * 0.45 * sgn), q, one);
+          beltRails.setMatrixAt(nRail++, m4);
+        }
         if (joinFn && joinFn(b)) {
           // mündet seitlich in ein anderes Band: Laufband etwas höher und länger, ohne Lücke
           m4.compose(new THREE.Vector3(b.x + 0.5, BELT_TOP + 0.004, b.y + 0.5), q, one);
@@ -1168,12 +1216,16 @@ function create(canvas) {
     }
     beltFrames.count = beltTops.count = n;
     beltTopsLong.count = nLong;
+    beltRails.count = nRail;
+    beltRails.instanceMatrix.needsUpdate = true;
+    beltRails.computeBoundingSphere();
     beltTopsLong.instanceMatrix.needsUpdate = true;
     beltTopsLong.computeBoundingSphere();
     for (const k of [1, -1]) {
       const cv = curves[k];
-      cv.f.count = cv.t.count = cv.n;
-      cv.f.instanceMatrix.needsUpdate = cv.t.instanceMatrix.needsUpdate = true;
+      cv.f.count = cv.t.count = cv.r.count = cv.ri.count = cv.n;
+      cv.f.instanceMatrix.needsUpdate = cv.t.instanceMatrix.needsUpdate = cv.r.instanceMatrix.needsUpdate = cv.ri.instanceMatrix.needsUpdate = true;
+      cv.r.computeBoundingSphere(); cv.ri.computeBoundingSphere();
       cv.f.computeBoundingSphere();
       cv.t.computeBoundingSphere();
     }
@@ -1303,7 +1355,7 @@ function create(canvas) {
     const dtSec = Math.min(0.1, (now - lastT) / 1000);
     lastT = now;
     const t = now / 1000;
-    curveFn = s.beltCurve; joinFn = s.beltJoin;
+    curveFn = s.beltCurve; joinFn = s.beltJoin; sidesFn = s.beltSides;
     syncBuildings(s.world);
     view.az += (view.azTarget - view.az) * Math.min(1, dtSec * 8);
     updateCamera();
