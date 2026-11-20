@@ -273,6 +273,24 @@
     curveCache.m.set(b.id, c);
     return c;
   }
+  // Gerades Band, in das von der Seite ein anderes Band einmündet (T-Stück)
+  function beltSides(b) {
+    const side = (o) => {
+      const [ox, oy] = DIRS[(b.dir + o) % 4];
+      const n = world.grid.get((b.x + ox) + ',' + (b.y + oy));
+      if (!n || n.kind !== 'band') return false;
+      const [fx, fy] = DIRS[n.dir];
+      return n.x + fx === b.x && n.y + fy === b.y;
+    };
+    return { openR: side(1), openL: side(3) };
+  }
+  // Mündet Band b seitlich in ein gerades Band? Dann reicht sein Laufband über dessen Schiene.
+  function beltJoin(b) {
+    const [fx, fy] = DIRS[b.dir];
+    const n = world.grid.get((b.x + fx) + ',' + (b.y + fy));
+    if (!n || n.kind !== 'band' || n.dir % 2 === b.dir % 2) return false;
+    return beltCurve(n) === 0;
+  }
   // Punkt und Laufrichtung (Winkel) auf einem Band bei Fortschritt p (0..1), in Weltkoordinaten
   function beltPoint(b, p) {
     const c = b.kind === 'band' ? beltCurve(b) : 0;
@@ -541,7 +559,7 @@
       // zwei gerade Bänder übereinander mit gelben Eckmarken
       c.restore();
       drawBuilding(c, 'band', x, y, s, 0);
-      drawBuilding(c, 'band', x, y, s, 1, opts);
+      drawBuilding(c, 'band', x, y, s, 1, { ...opts, openR: true, openL: true });
       c.save();
       c.fillStyle = 'rgba(255,210,63,0.95)';
       for (const [ox, oy] of [[0.04, 0.04], [0.84, 0.04], [0.04, 0.84], [0.84, 0.84]]) c.fillRect(x + ox * s, y + oy * s, s * 0.12, s * 0.12);
@@ -553,8 +571,8 @@
       c.rotate(d * Math.PI / 2);
       const a0 = Math.PI, a1 = Math.PI + k * Math.PI / 2;
       const arc = (w, col) => { c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'butt'; c.beginPath(); c.arc(s / 2, k * s / 2, s / 2, a0, a1, k < 0); c.stroke(); };
-      arc(s * 0.76, '#c7cbd6');
-      arc(s * 0.56, '#596173');
+      arc(s, '#c7cbd6');
+      arc(s * 0.8, '#596173');
       c.strokeStyle = '#8791a8';
       c.lineWidth = Math.max(1.2, s * 0.07);
       c.lineCap = 'round';
@@ -574,20 +592,21 @@
       }
       c.restore();
     } else if (kind === 'band') {
-      const m = s * 0.04;
       c.save();
       c.translate(x + s / 2, y + s / 2);
       c.rotate(d * Math.PI / 2);
       // Rahmen (Seitenschienen) und Laufband
-      c.fillStyle = 'rgba(40,80,30,0.18)';
-      c.fillRect(-s / 2 + m, -s * 0.36 + s * 0.06, s - m * 2, s * 0.72);
+      // Rahmen füllt das ganze Feld, so stoßen benachbarte Bänder ohne Lücke aneinander
       c.fillStyle = '#c7cbd6';
-      c.fillRect(-s / 2, -s * 0.38, s, s * 0.76);
+      c.fillRect(-s / 2, -s / 2, s, s);
       c.fillStyle = '#596173';
-      c.fillRect(-s / 2, -s * 0.28, s, s * 0.56);
+      c.fillRect(-s / 2, -s * 0.4, s, s * 0.8);
+      // seitlich einmündende Bänder: Schiene an dieser Stelle offen
+      if (opts.openR) c.fillRect(-s * 0.4, s * 0.4, s * 0.8, s * 0.1);
+      if (opts.openL) c.fillRect(-s * 0.4, -s / 2, s * 0.8, s * 0.1);
       c.save();
       c.beginPath();
-      c.rect(-s / 2, -s * 0.28, s, s * 0.56);
+      c.rect(-s / 2, -s * 0.4, s, s * 0.8);
       c.clip();
       c.strokeStyle = '#8791a8';
       c.lineWidth = Math.max(1.2, s * 0.07);
@@ -606,7 +625,7 @@
       c.restore();
       // Nieten auf den Schienen
       c.fillStyle = '#a4aab8';
-      for (const sy of [-0.33, 0.33]) for (const sx of [-0.3, 0.2]) { c.beginPath(); c.arc(sx * s, sy * s, Math.max(0.8, s * 0.025), 0, Math.PI * 2); c.fill(); }
+      for (const sy of [-0.45, 0.45]) for (const sx of [-0.3, 0.2]) { if ((sy > 0 && opts.openR) || (sy < 0 && opts.openL)) continue; c.beginPath(); c.arc(sx * s, sy * s, Math.max(0.8, s * 0.025), 0, Math.PI * 2); c.fill(); }
       c.restore();
     } else if (kind === 'zentrale') {
       const pad = s * 0.12;
@@ -941,7 +960,7 @@
       if (!world.w) return;
       updateKeys();
       drawMinimap();
-      r3d.render({ world, items, crossItems, busy, beltSpeed, beltCurve, beltPoint, lastTickAt, hover, tool, dir, cursors, players, defs, canPlace });
+      r3d.render({ world, items, crossItems, busy, beltSpeed, beltCurve, beltJoin, beltPoint, lastTickAt, hover, tool, dir, cursors, players, defs, canPlace });
       return;
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1018,7 +1037,8 @@
       }
       if (b.kind !== 'band') continue;
       const [sx, sy] = toScreen(b.x, b.y);
-      drawBuilding(ctx, b.kind, sx, sy, s, b.dir, { curve: beltCurve(b) });
+      const curve = beltCurve(b);
+      drawBuilding(ctx, b.kind, sx, sy, s, b.dir, curve ? { curve } : beltSides(b));
     }
 
     // Items auf Bändern (zwischen Ticks interpoliert)
@@ -1060,8 +1080,12 @@
         ctx.stroke();
       } else {
         const ok = canPlace(tool, hover.x, hover.y);
-        drawBuilding(ctx, tool, sx, sy, s, dir, { alpha: 0.6 });
-        ctx.strokeStyle = ok ? '#ffffff' : '#ff5a5a';
+        // kräftig blaue Markierung unter der Vorschau, damit man sie gut sieht
+        ctx.fillStyle = ok ? 'rgba(47,140,255,0.45)' : 'rgba(255,90,90,0.4)';
+        roundRect(ctx, sx + 1.5, sy + 1.5, s - 3, s - 3, s * 0.18);
+        ctx.fill();
+        drawBuilding(ctx, tool, sx, sy, s, dir, { alpha: 0.75 });
+        ctx.strokeStyle = ok ? '#1f6fff' : '#ff5a5a';
         ctx.setLineDash(ok ? [] : [6, 4]);
         roundRect(ctx, sx + 1.5, sy + 1.5, s - 3, s - 3, s * 0.18);
         ctx.stroke();
@@ -1415,7 +1439,10 @@
     if (e.button === 1 || spaceDown || (tool === 'hand' && e.button === 0)) {
       drag = { mode: 'pan', sx: e.clientX, sy: e.clientY, camx: cam.x, camy: cam.y };
       if (r3d) r3d.panStart(e.clientX, e.clientY);
-    } else if (e.button === 2 || tool === 'delete') {
+    } else if (e.button === 2) {
+      // Rechtsklick macht absichtlich nichts (kein Abreißen mehr)
+      return;
+    } else if (tool === 'delete') {
       drag = { mode: 'erase', last: cell };
       eraseAt(cell);
     } else if (e.button === 0) {

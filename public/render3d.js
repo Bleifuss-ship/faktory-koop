@@ -240,7 +240,8 @@ function create(canvas) {
     wood: mat(0xa0703c),
     flame: mat(0xffb030, { emissive: 0xff7a10, emissiveIntensity: 0.9 }),
     roof: Object.fromEntries(Object.entries(ROOF).map(([k, c]) => [k, mat(c, { map: panelTex })])),
-    ghost: new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false }),
+    // Vorschau kräftig blau, damit sie auf Gras, Bändern und Gebäuden gut zu sehen ist
+    ghost: new THREE.MeshLambertMaterial({ color: 0x2f8cff, emissive: 0x0b4fd0, emissiveIntensity: 0.55, transparent: true, opacity: 0.78, depthWrite: false }),
     ghostBad: new THREE.MeshLambertMaterial({ color: 0xff5a5a, transparent: true, opacity: 0.55, depthWrite: false }),
   };
   const ROOF_CORR = Object.fromEntries(Object.entries(ROOF).map(([k, c]) => [k, mat(c, { map: corrugTex })]));
@@ -258,8 +259,11 @@ function create(canvas) {
     pillar: new THREE.BoxGeometry(0.07, 0.34, 0.07),
     plate: new RoundedBoxGeometry(0.42, 0.07, 0.3, 1, 0.02),
     gear: makeGearGeometry(),
-    beltFrame: new THREE.BoxGeometry(1, 0.1, 0.78),
-    beltTop: new THREE.PlaneGeometry(1, 0.58).rotateX(-Math.PI / 2),
+    // Bänder füllen das ganze Feld, damit benachbarte Bänder ohne Lücke aneinanderstoßen
+    beltFrame: new THREE.BoxGeometry(1, 0.1, 1),
+    beltTop: new THREE.PlaneGeometry(1, 0.8).rotateX(-Math.PI / 2),
+    // verlängertes Laufband für seitliche Einmündungen: reicht über die Schiene des Zielbands
+    beltTopLong: new THREE.PlaneGeometry(1.1, 0.8).rotateX(-Math.PI / 2).translate(0.05, 0, 0),
     cursor: new THREE.ConeGeometry(0.16, 0.36, 4).rotateX(Math.PI),
     hover: new THREE.PlaneGeometry(0.94, 0.94).rotateX(-Math.PI / 2),
   };
@@ -982,15 +986,17 @@ function create(canvas) {
   const beltFrames = new THREE.InstancedMesh(G.beltFrame, M.grey, MAX_BELTS);
   const beltTops = new THREE.InstancedMesh(G.beltTop, beltMat, MAX_BELTS);
   beltFrames.receiveShadow = beltTops.receiveShadow = true;
-  beltFrames.count = beltTops.count = 0;
-  scene.add(beltFrames, beltTops);
+  const beltTopsLong = new THREE.InstancedMesh(G.beltTopLong, beltMat, MAX_BELTS);
+  beltFrames.receiveShadow = beltTopsLong.receiveShadow = true;
+  beltFrames.count = beltTops.count = beltTopsLong.count = 0;
+  scene.add(beltFrames, beltTops, beltTopsLong);
 
   // Bandkurven: Viertelkreis um die innere Ecke. Lokales System wie beim geraden Band
   // (Laufrichtung +x), Zulauf von der Seite z = +0.5 (k = +1) oder z = -0.5 (k = -1).
   const CURVE_SEG = 12;
   function curveTopGeo(k) {
     const pos = [], uv = [], idx = [];
-    const rIn = 0.5 - 0.29, rOut = 0.5 + 0.29;
+    const rIn = 0.5 - 0.4, rOut = 0.5 + 0.4;
     for (let i = 0; i <= CURVE_SEG; i++) {
       const p = i / CURVE_SEG;
       const a = Math.PI + k * p * Math.PI / 2;
@@ -1013,7 +1019,7 @@ function create(canvas) {
   }
   function curveFrameGeo(k) {
     const sh = new THREE.Shape();
-    const rIn = 0.5 - 0.39, rOut = 0.5 + 0.39;
+    const rIn = 0.002, rOut = 1;
     const pt = (r, p) => { const a = Math.PI + k * p * Math.PI / 2; return [0.5 + r * Math.cos(a), k * 0.5 + r * Math.sin(a)]; };
     sh.moveTo(...pt(rOut, 0));
     for (let i = 1; i <= CURVE_SEG; i++) sh.lineTo(...pt(rOut, i / CURVE_SEG));
@@ -1103,7 +1109,7 @@ function create(canvas) {
     buildDeposits(world);
   }
 
-  let curveFn = null;
+  let curveFn = null, joinFn = null;
   function syncBuildings(world) {
     if (world.version === builtVersion) return;
     builtVersion = world.version;
@@ -1117,7 +1123,7 @@ function create(canvas) {
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
     const one = new THREE.Vector3(1, 1, 1);
-    let n = 0;
+    let n = 0, nLong = 0;
     curves[1].n = curves[-1].n = 0;
     for (const b of world.buildings.values()) {
       if (b.kind === 'band') {
@@ -1135,7 +1141,12 @@ function create(canvas) {
         }
         m4.compose(new THREE.Vector3(b.x + 0.5, 0.05, b.y + 0.5), q, one);
         beltFrames.setMatrixAt(n, m4);
-        m4.compose(new THREE.Vector3(b.x + 0.5, BELT_TOP, b.y + 0.5), q, one);
+        if (joinFn && joinFn(b)) {
+          // mündet seitlich in ein anderes Band: Laufband etwas höher und länger, ohne Lücke
+          m4.compose(new THREE.Vector3(b.x + 0.5, BELT_TOP + 0.004, b.y + 0.5), q, one);
+          beltTopsLong.setMatrixAt(nLong++, m4);
+          m4.makeScale(0, 0, 0);
+        } else m4.compose(new THREE.Vector3(b.x + 0.5, BELT_TOP, b.y + 0.5), q, one);
         beltTops.setMatrixAt(n, m4);
         n++;
         continue;
@@ -1149,6 +1160,9 @@ function create(canvas) {
       groups.set(b.id, g);
     }
     beltFrames.count = beltTops.count = n;
+    beltTopsLong.count = nLong;
+    beltTopsLong.instanceMatrix.needsUpdate = true;
+    beltTopsLong.computeBoundingSphere();
     for (const k of [1, -1]) {
       const cv = curves[k];
       cv.f.count = cv.t.count = cv.n;
@@ -1282,7 +1296,7 @@ function create(canvas) {
     const dtSec = Math.min(0.1, (now - lastT) / 1000);
     lastT = now;
     const t = now / 1000;
-    curveFn = s.beltCurve;
+    curveFn = s.beltCurve; joinFn = s.beltJoin;
     syncBuildings(s.world);
     view.az += (view.azTarget - view.az) * Math.min(1, dtSec * 8);
     updateCamera();
