@@ -247,10 +247,16 @@ function create(canvas) {
   const ROOF_CORR = Object.fromEntries(Object.entries(ROOF).map(([k, c]) => [k, mat(c, { map: corrugTex })]));
 
   // --- Geometrien ---
+  function halfBelt(off) {
+    const geo = new THREE.PlaneGeometry(0.5, 0.8).rotateX(-Math.PI / 2).translate(off, 0, 0);
+    const uv = geo.attributes.uv;
+    for (let k = 0; k < uv.count; k++) uv.setX(k, uv.getX(k) * 0.5 + (off > 0 ? 0.5 : 0));
+    return geo;
+  }
   const G = {
     body: new RoundedBoxGeometry(0.84, 0.36, 0.84, 2, 0.12),
     roof: new RoundedBoxGeometry(0.68, 0.12, 0.68, 2, 0.05),
-    tab: new THREE.BoxGeometry(0.18, 0.12, 0.34),
+    tab: new THREE.BoxGeometry(0.1, 0.05, 0.5),
     arrow: new THREE.ConeGeometry(0.07, 0.14, 3),
     blade: new RoundedBoxGeometry(0.3, 0.05, 0.1, 1, 0.02),
     hubCyl: new THREE.CylinderGeometry(0.07, 0.07, 0.1, 10),
@@ -263,6 +269,9 @@ function create(canvas) {
     beltFrame: new THREE.BoxGeometry(1, 0.1, 1),
     beltTop: new THREE.PlaneGeometry(1, 0.8).rotateX(-Math.PI / 2),
     // verlängertes Laufband für seitliche Einmündungen: reicht über die Schiene des Zielbands
+    // halbe Bandstücke für Verteiler und Zusammenführer (Mitte bis Rand), Textur im gleichen Maßstab
+    beltHalfOut: halfBelt(0.25),
+    beltHalfIn: halfBelt(-0.25),
     beltTopLong: new THREE.PlaneGeometry(1.1, 0.8).rotateX(-Math.PI / 2).translate(0.05, 0, 0),
     cursor: new THREE.ConeGeometry(0.16, 0.36, 4).rotateX(Math.PI),
     hover: new THREE.PlaneGeometry(0.94, 0.94).rotateX(-Math.PI / 2),
@@ -515,7 +524,8 @@ function create(canvas) {
     coal: mat(0x2c2e35, { flatShading: true }),
   };
   const BG = {
-    plinth: new RoundedBoxGeometry(0.92, 0.08, 0.92, 2, 0.04).translate(0, 0.04, 0),
+    // Sockel füllt das ganze Feld, damit Bänder direkt an Gebäude anschließen
+    plinth: new RoundedBoxGeometry(1, 0.1, 1, 2, 0.02).translate(0, 0.05, 0),
     box: new THREE.BoxGeometry(1, 1, 1),
     cyl: new THREE.CylinderGeometry(0.5, 0.5, 1, 16),
     cyl8: new THREE.CylinderGeometry(0.5, 0.5, 1, 8),
@@ -581,12 +591,42 @@ function create(canvas) {
     const pivot = new THREE.Group();
     pivot.rotation.y = ang;
     const tab = new THREE.Mesh(G.tab, ghost || M.grey);
-    tab.position.set(0.43, 0.06, z);
+    tab.position.set(0.44, 0.115, z);
     const arrow = new THREE.Mesh(G.arrow, ghost || M.dark);
     arrow.rotation.set(Math.PI / 2, 0, -Math.PI / 2);
-    arrow.position.set(0.47, 0.13, z);
+    arrow.position.set(0.44, 0.15, z);
     pivot.add(tab, arrow);
     g.add(pivot);
+  }
+
+  // Flache Bandteile: voller Rahmen, Bandstücke zur Mitte bzw. nach außen, farbige Mitte
+  const SIDE_ROT = { front: 0, right: -Math.PI / 2, left: Math.PI / 2, back: Math.PI };
+  function makeBeltPart(g, kind, ghost) {
+    const m = (geo, material) => new THREE.Mesh(geo, ghost || material);
+    const f = m(BG.crossFrame, M.grey); f.position.y = 0.05; g.add(f);
+    const split = kind === 'verteiler';
+    const ins = split ? ['back'] : ['back', 'left', 'right'];
+    const outs = split ? ['front', 'left', 'right'] : ['front'];
+    let h = 0;
+    for (const sd of ins) { const t = m(G.beltHalfIn, beltMat); t.rotation.y = SIDE_ROT[sd] + Math.PI; t.position.y = BELT_TOP + (h += 0.002); g.add(t); }
+    for (const sd of outs) { const t = m(G.beltHalfOut, beltMat); t.rotation.y = SIDE_ROT[sd]; t.position.y = BELT_TOP + (h += 0.002); g.add(t); }
+    const col = ghost || M.roof[kind];
+    // farbige Drehscheibe in der Mitte mit Pfeilen in Laufrichtung
+    const ring = new THREE.Mesh(BG.cyl, col); ring.scale.set(0.5, 0.05, 0.5); ring.position.y = 0.14; g.add(ring);
+    const cap = new THREE.Mesh(BG.cyl, ghost || BM.darkMetal); cap.scale.set(0.16, 0.06, 0.16); cap.position.y = 0.17; g.add(cap);
+    for (const sd of split ? outs : ins) {
+      const piv = new THREE.Group(); piv.rotation.y = SIDE_ROT[sd];
+      const arrow = new THREE.Mesh(G.arrow, ghost || M.white);
+      arrow.rotation.set(Math.PI / 2, 0, split ? -Math.PI / 2 : Math.PI / 2);
+      arrow.position.set(0.17, 0.175, 0);
+      piv.add(arrow); g.add(piv);
+    }
+    // Eckmarken in der Teilfarbe
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const k = new THREE.Mesh(BG.box, col); k.scale.set(0.14, 0.03, 0.14); k.position.set(sx * 0.42, 0.115, sz * 0.42); g.add(k);
+    }
+    if (split) g.userData.disc = ring; else g.userData.mergeRing = ring;
+    return g;
   }
 
   function makeBuilding(kind, ghost) {
@@ -612,6 +652,7 @@ function create(canvas) {
       }
       return g;
     }
+    if (kind === 'verteiler' || kind === 'zusammenfuehrer') return makeBeltPart(g, kind, ghost);
     if (kind === 'zentrale') {
       const base = m(new RoundedBoxGeometry(2.7, 0.5, 2.7, 3, 0.25), M.cream);
       base.position.y = 0.25;
@@ -866,40 +907,6 @@ function create(canvas) {
       g.add(trolley);
       g.userData.trolley = trolley;
       g.userData.lampOn = part(g, BG.sphere, X.lampGreen, [0.05, 0.05, 0.05], [0.405, 0.4, 0.24]);
-    } else if (kind === 'verteiler') {
-      // Verteiler: flacher Metallkasten mit Drehscheibe und drei Pfeilen
-      part(g, new RoundedBoxGeometry(0.72, 0.18, 0.72, 2, 0.05), X.metal, [1, 1, 1], [0, 0.17, 0]);
-      const disc = part(g, BG.cyl, R.verteiler, [0.44, 0.04, 0.44], [0, 0.28, 0]);
-      part(g, BG.cyl, X.plinth, [0.14, 0.06, 0.14], [0, 0.3, 0]);
-      for (const a of [0, Math.PI / 2, -Math.PI / 2]) {
-        const piv = new THREE.Group();
-        piv.rotation.y = a;
-        const arrow = new THREE.Mesh(G.arrow, ghost || M.white);
-        arrow.rotation.set(Math.PI / 2, 0, -Math.PI / 2);
-        arrow.position.set(0.2, 0.31, 0);
-        piv.add(arrow);
-        g.add(piv);
-      }
-      g.userData.disc = disc;
-      addOutput(g, ghost, 0, Math.PI / 2);
-      addOutput(g, ghost, 0, -Math.PI / 2);
-    } else if (kind === 'zusammenfuehrer') {
-      // Zusammenführer: Metallkasten mit Trichter, drei Pfeile zeigen nach innen, vorne eine Rutsche
-      part(g, new RoundedBoxGeometry(0.72, 0.18, 0.72, 2, 0.05), X.metal, [1, 1, 1], [0, 0.17, 0]);
-      part(g, BG.cyl, R.zusammenfuehrer, [0.5, 0.05, 0.5], [0, 0.28, 0]);
-      part(g, BG.cyl, X.darkMetal, [0.22, 0.12, 0.22], [0, 0.34, 0]);
-      const ring = part(g, BG.cyl, R.zusammenfuehrer, [0.12, 0.03, 0.12], [0, 0.415, 0]);
-      for (const a of [Math.PI, Math.PI / 2, -Math.PI / 2]) {
-        const piv = new THREE.Group();
-        piv.rotation.y = a;
-        const arrow = new THREE.Mesh(G.arrow, ghost || M.white);
-        arrow.rotation.set(Math.PI / 2, 0, Math.PI / 2);
-        arrow.position.set(0.25, 0.31, 0);
-        piv.add(arrow);
-        g.add(piv);
-      }
-      part(g, BG.box, R.zusammenfuehrer, [0.2, 0.06, 0.22], [0.27, 0.3, 0]);
-      g.userData.mergeRing = ring;
     }
     g.traverse((o) => { if (o.isMesh && !ghost) { o.castShadow = o.receiveShadow = true; } });
     return g;
