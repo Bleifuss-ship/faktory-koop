@@ -563,6 +563,35 @@
       c.save();
       c.fillStyle = 'rgba(255,210,63,0.95)';
       for (const [ox, oy] of [[0.04, 0.04], [0.84, 0.04], [0.04, 0.84], [0.84, 0.84]]) c.fillRect(x + ox * s, y + oy * s, s * 0.12, s * 0.12);
+    } else if (kind === 'verteiler' || kind === 'zusammenfuehrer') {
+      // flaches Bandteil: Rahmen über das ganze Feld, Bandstücke, farbige Drehscheibe
+      const split = kind === 'verteiler';
+      const col = KIND_COLORS[kind][0];
+      c.save();
+      c.translate(x + s / 2, y + s / 2);
+      c.rotate(d * Math.PI / 2);
+      c.fillStyle = '#c7cbd6';
+      c.fillRect(-s / 2, -s / 2, s, s);
+      c.fillStyle = '#596173';
+      c.fillRect(-s / 2, -s * 0.4, s, s * 0.8); // hinten-vorne
+      if (split) c.fillRect(-s * 0.4, 0, s * 0.8, s / 2); else c.fillRect(-s * 0.4, -s / 2, s * 0.8, s); // Seiten
+      if (split) c.fillRect(-s * 0.4, -s / 2, s * 0.8, s / 2);
+      c.fillStyle = col;
+      for (const [ox, oy] of [[-0.5, -0.5], [0.36, -0.5], [-0.5, 0.36], [0.36, 0.36]]) c.fillRect(ox * s, oy * s, s * 0.14, s * 0.14);
+      c.beginPath(); c.arc(0, 0, s * 0.27, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ffffff';
+      c.strokeStyle = '#ffffff';
+      c.lineWidth = Math.max(1.5, s * 0.05);
+      for (const a of split ? [0, Math.PI / 2, -Math.PI / 2] : [Math.PI, Math.PI / 2, -Math.PI / 2]) {
+        c.save();
+        c.rotate(a);
+        if (split) { c.beginPath(); c.moveTo(s * 0.23, 0); c.lineTo(s * 0.12, -s * 0.07); c.lineTo(s * 0.12, s * 0.07); c.closePath(); c.fill(); }
+        else { c.beginPath(); c.moveTo(s * 0.1, 0); c.lineTo(s * 0.21, -s * 0.07); c.lineTo(s * 0.21, s * 0.07); c.closePath(); c.fill(); }
+        c.restore();
+      }
+      c.fillStyle = '#3a4150';
+      c.beginPath(); c.arc(0, 0, s * 0.07, 0, Math.PI * 2); c.fill();
+      c.restore();
     } else if (kind === 'band' && opts.curve) {
       // Kurve: Viertelkreis um die innere Ecke
       const k = opts.curve;
@@ -723,26 +752,6 @@
         c.fillStyle = roof;
         c.beginPath(); c.arc(0, 0, s * 0.05, 0, Math.PI * 2); c.fill();
         c.restore();
-      } else if (kind === 'verteiler') {
-        for (const a of [0, Math.PI / 2, -Math.PI / 2]) {
-          c.save();
-          c.translate(cx, cy);
-          c.rotate(a + d * Math.PI / 2);
-          c.beginPath(); c.moveTo(0, 0); c.lineTo(s * 0.17, 0); c.stroke();
-          c.beginPath(); c.moveTo(s * 0.24, 0); c.lineTo(s * 0.14, -s * 0.07); c.lineTo(s * 0.14, s * 0.07); c.closePath(); c.fill();
-          c.restore();
-        }
-      } else if (kind === 'zusammenfuehrer') {
-        // drei Pfeile nach innen, einer nach vorne hinaus
-        for (const a of [Math.PI, Math.PI / 2, -Math.PI / 2]) {
-          c.save();
-          c.translate(cx, cy);
-          c.rotate(a + d * Math.PI / 2);
-          c.beginPath(); c.moveTo(s * 0.24, 0); c.lineTo(s * 0.12, 0); c.stroke();
-          c.beginPath(); c.moveTo(s * 0.06, 0); c.lineTo(s * 0.15, -s * 0.07); c.lineTo(s * 0.15, s * 0.07); c.closePath(); c.fill();
-          c.restore();
-        }
-        c.beginPath(); c.arc(cx, cy, s * 0.05, 0, Math.PI * 2); c.fill();
       } else if (kind === 'hochofen') {
         roundRect(c, cx - s * 0.18, cy - s * 0.04, s * 0.36, s * 0.24, s * 0.05); c.fill();
         c.fillRect(cx + s * 0.06, cy - s * 0.26, s * 0.09, s * 0.22);
