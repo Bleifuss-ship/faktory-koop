@@ -54,7 +54,7 @@ Optionale Umgebungsvariablen: `PORT` (Standard 3000), `SAVE_DIR` (Standard `./sa
 
 Gebaut wird mit **Talern** (Anzeige oben rechts). Jede Lieferung an die Zentrale bringt Taler. Verarbeitete Waren sind mehr wert: Jedes Produkt bringt 30 % mehr als seine Zutaten zusammen, plus etwas für die Arbeitszeit. Abreißen erstattet den vollen Preis. Neue Welten starten mit 300 Talern, alte Spielstände bekommen einmalig 1.000.
 
-- Baukosten: Förderband 2 · Kreuzung 4 · Verteiler 20 · Bohrer 25 · Sägewerk 40 · Schmelzofen 60 · Presse 120 · Steinbrecher 150 · Hochofen 300 · Werkbank 400 · Chemiewerk 800 · Fabrikator 1.500 · Zentrifuge 2.500 · Montagehalle 5.000
+- Baukosten: Förderband 2 · Kreuzung 4 · Unterführung 15 · Verteiler 20 · Bohrer 25 · Sägewerk 40 · Schmelzofen 60 · Presse 120 · Steinbrecher 150 · Hochofen 300 · Werkbank 400 · Chemiewerk 800 · Fabrikator 1.500 · Zentrifuge 2.500 · Montagehalle 5.000
 - Beispiele für Erlöse je Stück: Holz 1 · Eisenerz 2 · Eisenbarren 5 · Zahnrad 8 · Motor 24 · Steuerchip 65 · Roboterarm 120 · Computer 230 · Raumsonde 1.262
 
 ### Förderbänder
@@ -86,11 +86,15 @@ Neue Welten sind 160 × 160 Felder groß (vorher 80 × 80) und werden mit Rausch
 | Zentrifuge | Uranerz → Uranpellet |
 | Montagehalle | Roboterarm + Bohrkopf + Batterie → Helferbot · Turbine + 2× Isolierkabel + Energiezelle → Generator · 2× Steuerchip + Kunstharz + Glühbirne → Computer · 2× Solarzelle + Leichtrahmen + Isolierkabel → Solarsegel · Computer + Generator + 2× Solarsegel → Raumsonde |
 
-Der **Verteiler** (Taste 5) teilt ein Band auf: Gegenstände gehen abwechselnd nach vorne, rechts und links. Er ist von Anfang an freigeschaltet, kostet 20 Taler und lässt sich wie die Kreuzung direkt auf ein vorhandenes Band setzen (dann zählt die gewählte Richtung).
+Der **Verteiler** (Taste 5) teilt ein Band auf: Gegenstände gehen abwechselnd nach vorne, rechts und links. Er wird mit „Logistik“ erforscht, kostet 20 Taler und lässt sich wie die Kreuzung direkt auf ein vorhandenes Band setzen (dann zählt die gewählte Richtung).
 
-**Zusammenführen geht automatisch:** Laufen zwei oder drei Bänder (von hinten, links, rechts) in ein Band hinein, wird daraus von selbst eine Zusammenführung mit genau so vielen Eingängen. Alle Eingänge kommen gerecht abwechselnd dran, auch wenn es sich staut; man erkennt sie am türkisen Kasten mit einer Öffnung pro Eingang. Einen Zusammenführer zum Setzen gibt es deshalb nicht mehr, alte Spielstände wandeln ihn in ein Band um.
+**Zusammenführen geht automatisch:** Laufen zwei oder drei Bänder (von hinten, links, rechts) in ein Band hinein, wird daraus von selbst eine Zusammenführung mit genau so vielen Eingängen. Alle Eingänge kommen gerecht abwechselnd dran, auch wenn es sich staut; sie sieht aus wie ein ganz normales Band. Einen Zusammenführer zum Setzen gibt es deshalb nicht mehr, alte Spielstände wandeln ihn in ein Band um.
 
-Auf ein Feld Band passen **drei Gegenstände** hintereinander. Verteiler (blau) sind runde Kästen mit dunklen Öffnungen, weiße Pfeile oben zeigen die Richtungen. Die Kreuzung erkennt man an vier gelben Eckpfosten. Förderbänder haben einen dunklen Gurt mit großen hellen Pfeilen und runde helle Seitenschienen; mündet ein Band seitlich ein, ist die Schiene dort offen. Auch alle Gebäude stehen auf einem Sockel, der das ganze Feld ausfüllt, sodass Bänder ohne Spalt anschließen.
+Auf ein Feld Band passen **drei Gegenstände** hintereinander. Auch der Verteiler sieht aus wie ein normales Band (T- oder Kreuzstück). Kommt ein Gegenstand von der Seite, gleitet er sauber zur Bandmitte; Kurven fahren die Gegenstände vom Anfang an ab.
+
+**Unterführungen** (Taste U, 15 Taler, Technik „Tunnelbau“): Zwei Unterführungen in gleicher Richtung mit bis zu 4 Feldern dazwischen bilden einen Tunnel. Die erste ist der Eingang (Band läuft ins Tor), die zweite der Ausgang. Dazwischen laufen die Gegenstände unter Bändern und Gebäuden hindurch. Ein Tor ohne Partner ist rötlich.
+
+**Forschung für Bänder:** Am Anfang gibt es nur einfache Förderbänder. „Logistik“ schaltet Kreuzung und Verteiler frei, „Tunnelbau“ die Unterführung. Schnelle Bänder, Turbobänder, Leichtbau, Magnetbänder und das Rechenzentrum machen alle Bänder Schritt für Schritt schneller. Die Kreuzung erkennt man an vier gelben Eckpfosten. Förderbänder haben einen dunklen Gurt mit großen hellen Pfeilen und runde helle Seitenschienen; mündet ein Band seitlich ein, ist die Schiene dort offen. Auch alle Gebäude stehen auf einem Sockel, der das ganze Feld ausfüllt, sodass Bänder ohne Spalt anschließen.
 
 Die **Montagehalle** braucht drei Zutaten gleichzeitig, also am besten von hinten, links und rechts anliefern.
 
@@ -98,12 +102,13 @@ Die **Montagehalle** braucht drei Zutaten gleichzeitig, also am besten von hinte
 
 ### Techbaum
 
-Alles, was an der Zentrale ankommt, landet im Lager. Im Techbaum (Taste T oder Knopf „Techbaum öffnen") gebt ihr es für neue Technik aus. Der Baum hat 27 Techniken in neun Stufen, vom Sägewerk bis zum Start der Raumsonde:
+Alles, was an der Zentrale ankommt, landet im Lager. Im Techbaum (Taste T oder Knopf „Techbaum öffnen") gebt ihr es für neue Technik aus. Der Baum hat 28 Techniken in neun Stufen, vom Sägewerk bis zum Start der Raumsonde:
 
 | Technik | Braucht | Kosten | Wirkung |
 |---|---|---|---|
-| Grundlagen | – | – | Bänder, Kreuzungen, Verteiler, Bohrer, Sägewerk und Schmelzofen. |
-| Logistik | Grundlagen | 20× Bretter + 10× Ziegel | Bänder laufen 25 % schneller. |
+| Grundlagen | – | – | Einfache Förderbänder, Bohrer, Sägewerk und Schmelzofen. |
+| Logistik | Grundlagen | 20× Bretter + 10× Ziegel | Schaltet Kreuzung und Verteiler frei, Bänder laufen 25 % schneller. |
+| Tunnelbau | Logistik | 30× Bretter + 20× Eisenbarren | Schaltet die Unterführung frei. |
 | Metallbau | Grundlagen | 20× Eisenbarren + 10× Bretter | Schaltet die Presse frei. |
 | Steinbruch | Grundlagen | 20× Ziegel + 10× Eisenbarren | Schaltet den Steinbrecher frei (Kies, Tonerde, Schwefelpulver). |
 | Schnelle Bänder | Logistik | 30× Eisenbarren + 20× Ziegel | Bänder laufen 50 % schneller. |
@@ -134,7 +139,7 @@ Alles, was an der Zentrale ankommt, landet im Lager. Im Techbaum (Taste T oder K
 
 | | PC | Handy |
 |---|---|---|
-| Bauen | Gebäude wählen (oder Taste 1–9, 0, K, V, B, N), klicken/ziehen | Gebäude wählen, tippen/ziehen |
+| Bauen | Gebäude wählen (oder Taste 1–9, 0, K, U, V, B, N), klicken/ziehen | Gebäude wählen, tippen/ziehen |
 | Drehen | R | ⟳ |
 | Abreißen | 🗑 wählen oder Taste X, klicken/ziehen | 🗑 wählen, tippen |
 | Kamera | WASD, Leertaste/mittlere Maustaste + ziehen, Mausrad zoomt, Q/E oder 🧭 dreht | ✋ + ziehen, zwei Finger zoomen und drehen, 🧭 dreht |

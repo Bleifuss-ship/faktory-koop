@@ -253,6 +253,7 @@
     const n = world.grid.get((b.x + ox) + ',' + (b.y + oy));
     if (!n || n === b || n.size > 1) return false;
     if (n.kind === 'kreuzung') return true; // Kreuzungen geben geradeaus weiter
+    if (n.kind === 'unterfuehrung' && tunnelIsEntrance(n)) return false; // Eingang gibt unter der Erde weiter
     if (n.kind === 'verteiler') { // Verteiler geben nach vorne, rechts und links aus
       const back = DIRS[(n.dir + 2) % 4];
       return !(n.x + back[0] === b.x && n.y + back[1] === b.y);
@@ -304,6 +305,41 @@
     const n = world.grid.get((b.x + fx) + ',' + (b.y + fy));
     if (!n || n.kind !== 'band' || n.dir % 2 === b.dir % 2) return false;
     return beltCurve(n) === 0;
+  }
+  // Unterführungen: gleiche Richtung, bis zu 4 Felder dazwischen, abwechselnd Eingang und Ausgang
+  function tunnelNeighbor(t, sign) {
+    const [dx, dy] = DIRS[t.dir];
+    const R = (defs && defs.TUNNEL_RANGE) || 5;
+    for (let k = 1; k <= R; k++) {
+      const n = world.grid.get((t.x + dx * k * sign) + ',' + (t.y + dy * k * sign));
+      if (n && n.kind === 'unterfuehrung' && n.dir === t.dir) return n;
+    }
+    return null;
+  }
+  function tunnelIsEntrance(t, depth = 0) {
+    const prev = tunnelNeighbor(t, -1);
+    return !prev || depth > 50 ? true : !tunnelIsEntrance(prev, depth + 1);
+  }
+  // { role: 'in' | 'out', alone: ohne Partner }
+  function tunnelRole(t) {
+    if (tunnelIsEntrance(t)) return { role: 'in', alone: !tunnelNeighbor(t, 1) };
+    return { role: 'out', alone: false };
+  }
+  // Gegenstand i der Tick-Liste [x, y, item, p, s, m]: Position zwischen zwei Ticks.
+  // Nur Gegenstände, die sich im letzten Tick bewegt haben (m), laufen weiter; s ist der seitliche Versatz.
+  const ITEM_STRIDE = 6;
+  function itemPoint(i, dt) {
+    const x = items[i], y = items[i + 1];
+    const b = world.grid.get(x + ',' + y);
+    const moving = items[i + 5];
+    let sOff = items[i + 4];
+    let p = items[i + 3];
+    if (moving && sOff) sOff -= Math.sign(sOff) * Math.min(Math.abs(sOff), beltSpeed * dt);
+    else if (moving) p = Math.min(1, p + beltSpeed * dt);
+    if (!b) return [x + 0.5, y + 0.5, 0];
+    const [wx, wy, ang] = beltPoint(b, p);
+    const [rx, ry] = DIRS[(b.dir + 1) % 4];
+    return [wx + rx * sOff, wy + ry * sOff, ang];
   }
   // Punkt und Laufrichtung (Winkel) auf einem Band bei Fortschritt p (0..1), in Weltkoordinaten
   function beltPoint(b, p) {
@@ -614,6 +650,7 @@
           for (const a of ins) stub(a + Math.PI, false);
           for (const a of outs) stub(a, true);
         }
+        if (split) { c.restore(); return; } // Verteiler sieht aus wie ein normales Band (T-Stück)
         // Kasten mit Schatten
         c.fillStyle = 'rgba(0,0,0,0.25)';
         roundRect(c, -s * 0.33 + s * 0.04, -s * 0.33 + s * 0.05, s * 0.66, s * 0.66, s * 0.12); c.fill();
@@ -633,6 +670,36 @@
           c.restore();
         }
       }
+    } else if (kind === 'unterfuehrung') {
+      // Unterführung: halbes Band, das in ein Tunneltor läuft (Eingang) oder aus ihm kommt (Ausgang)
+      const out = opts.role === 'out';
+      c.translate(x + s / 2, y + s / 2);
+      c.rotate(d * Math.PI / 2);
+      c.fillStyle = '#353b47';
+      c.fillRect(-s / 2, -s / 2, s, s);
+      const bx = out ? 0 : -s / 2;
+      beltStrip(c, bx, -s * 0.4, s / 2, s * 0.8, s, t);
+      c.fillStyle = '#f1f4f9';
+      roundRect(c, bx, -s / 2, s / 2, s * 0.1, s * 0.04); c.fill();
+      roundRect(c, bx, s * 0.4, s / 2, s * 0.1, s * 0.04); c.fill();
+      // Tor aus Stein mit dunkler Öffnung zur Bandseite
+      const gx = out ? -s / 2 : 0;
+      c.fillStyle = 'rgba(0,0,0,0.25)';
+      roundRect(c, gx + s * 0.03, -s * 0.46 + s * 0.04, s / 2, s * 0.92, s * 0.1); c.fill();
+      c.fillStyle = opts.alone ? '#c9a0a0' : '#a7afbd';
+      roundRect(c, gx, -s * 0.46, s / 2, s * 0.92, s * 0.1); c.fill();
+      c.fillStyle = 'rgba(255,255,255,0.25)';
+      roundRect(c, gx + s * 0.06, -s * 0.38, s * 0.38, s * 0.76, s * 0.07); c.fill();
+      c.fillStyle = '#1f232b';
+      const mx = out ? -s * 0.08 : 0;
+      roundRect(c, mx, -s * 0.34, s * 0.08, s * 0.68, s * 0.04); c.fill();
+      // Pfeil nach unten bzw. oben (Eingang/Ausgang)
+      c.fillStyle = '#ffffff';
+      c.beginPath();
+      const ax = out ? -s * 0.25 : s * 0.25;
+      if (out) { c.moveTo(ax + s * 0.1, 0); c.lineTo(ax - s * 0.04, -s * 0.09); c.lineTo(ax - s * 0.04, s * 0.09); }
+      else { c.moveTo(ax + s * 0.1, 0); c.lineTo(ax - s * 0.04, -s * 0.09); c.lineTo(ax - s * 0.04, s * 0.09); }
+      c.closePath(); c.fill();
     } else if (kind === 'band' && opts.curve) {
       // Kurve: Viertelkreis um die innere Ecke
       const k = opts.curve;
@@ -987,7 +1054,7 @@
       if (!world.w) return;
       updateKeys();
       drawMinimap();
-      r3d.render({ world, items, crossItems, busy, beltSpeed, beltCurve, beltJoin, beltSides, beltMerge, beltPoint, lastTickAt, hover, tool, dir, cursors, players, defs, canPlace });
+      r3d.render({ world, items, crossItems, busy, beltSpeed, beltCurve, beltJoin, beltSides, beltMerge, beltPoint, itemPoint, itemStride: ITEM_STRIDE, tunnelRole, lastTickAt, hover, tool, dir, cursors, players, defs, canPlace });
       return;
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1053,9 +1120,10 @@
       visible.push(b);
     }
     for (const b of visible) {
-      if (b.kind === 'kreuzung') {
+      if (b.kind === 'kreuzung' || b.kind === 'verteiler' || b.kind === 'unterfuehrung') {
+        // flache Bandteile gehören unter die Gegenstände
         const [sx, sy] = toScreen(b.x, b.y);
-        drawBuilding(ctx, 'kreuzung', sx, sy, s, 0);
+        drawBuilding(ctx, b.kind, sx, sy, s, b.kind === 'kreuzung' ? 0 : b.dir, b.kind === 'unterfuehrung' ? tunnelRole(b) : {});
         continue;
       }
       if (b.kind !== 'band') continue;
@@ -1066,13 +1134,11 @@
 
     // Items auf Bändern (zwischen Ticks interpoliert)
     const dt = Math.min(1, (performance.now() - lastTickAt) / 100);
-    for (let i = 0; i < items.length; i += 4) {
+    for (let i = 0; i < items.length; i += ITEM_STRIDE) {
       const x = items[i];
       const y = items[i + 1];
       if (x < x0 - 1 || y < y0 - 1 || x > x1 || y > y1) continue;
-      const b = world.grid.get(x + ',' + y);
-      const p = Math.min(1, items[i + 3] + (items[i + 3] < 1 ? beltSpeed * dt : 0));
-      const [wx, wy] = b ? beltPoint(b, p) : [x + 0.5, y + 0.5];
+      const [wx, wy] = itemPoint(i, dt);
       const [sx, sy] = toScreen(wx, wy);
       ctx.fillStyle = 'rgba(20,30,40,0.28)';
       ctx.beginPath(); ctx.ellipse(sx + s * 0.03, sy + s * 0.12, s * 0.2, s * 0.08, 0, 0, Math.PI * 2); ctx.fill();
@@ -1086,13 +1152,7 @@
     }
 
     for (const b of visible) {
-      if (b.kind === 'band') {
-        // automatische Zusammenführung: Kasten über dem Band (über den Gegenständen)
-        const ins = beltMerge(b);
-        if (ins) { const [sx, sy] = toScreen(b.x, b.y); drawBuilding(ctx, 'zusammenfuehrer', sx, sy, s, b.dir, { boxOnly: true, ins }); }
-        continue;
-      }
-      if (b.kind === 'kreuzung') continue;
+      if (b.kind === 'band' || b.kind === 'kreuzung' || b.kind === 'verteiler' || b.kind === 'unterfuehrung') continue;
       const [sx, sy] = toScreen(b.x, b.y);
       drawBuilding(ctx, b.kind, sx, sy, s, b.dir, { size: b.size, busy: busy.get(b.id) });
     }
