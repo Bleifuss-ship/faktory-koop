@@ -1839,6 +1839,83 @@
     setTimeout(() => { location.href = location.pathname; }, 150);
   });
 
+  // ---------- Updates (nur in den Apps) ----------
+  // Neue Versionen liegen als GitHub-Release vor. Desktop lädt und installiert selbst, Android lädt die APK im Browser.
+  const RELEASES = 'https://api.github.com/repos/Bleifuss-ship/faktory-koop/releases/latest';
+  const desk = window.fkDesktop || null;
+  const ownVersion = window.FK_VERSION || '0.0.0';
+  const updatePlatform = desk ? (desk.platform === 'win32' ? 'windows' : desk.platform === 'linux' ? 'linux' : null) : (isApp ? 'android' : null);
+  const ASSET = { windows: /-windows-x64-portable\.exe$/, linux: /-linux-amd64\.deb$/, android: /-android\.apk$/ };
+  let pendingUpdate = null;
+
+  function newer(a, b) {
+    const pa = String(a).replace(/^v/, '').split('.').map(Number), pb = String(b).replace(/^v/, '').split('.').map(Number);
+    for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+    return false;
+  }
+
+  async function checkUpdate() {
+    if (!updatePlatform) return { none: true, reason: 'Im Browser kommt die neue Version automatisch vom Server.' };
+    const r = await fetch(RELEASES, { headers: { Accept: 'application/vnd.github+json' } });
+    if (r.status === 404) return { none: true };
+    if (!r.ok) throw new Error('GitHub antwortet nicht (' + r.status + ')');
+    const rel = await r.json();
+    const version = String(rel.tag_name || '').replace(/^v/, '');
+    const asset = (rel.assets || []).find((a) => ASSET[updatePlatform].test(a.name));
+    if (!version || !newer(version, ownVersion) || !asset) return { none: true, latest: version };
+    return { version, asset, notes: rel.html_url };
+  }
+
+  function showUpdate(u) {
+    pendingUpdate = u;
+    $('u-title').textContent = `⬆️ Update auf Version ${u.version}`;
+    $('u-sub').textContent = updatePlatform === 'android'
+      ? 'Lädt die neue App herunter. Danach die Datei antippen und installieren.'
+      : `Du hast ${ownVersion}. Die neue Version wird geladen und installiert.`;
+    $('u-btn').textContent = updatePlatform === 'android' ? 'Herunterladen' : 'Jetzt aktualisieren';
+    $('m-update').classList.remove('hidden');
+  }
+
+  async function runUpdate() {
+    const u = pendingUpdate;
+    if (!u) return;
+    if (updatePlatform === 'android') {
+      // Im Android-Browser öffnen: der lädt die APK herunter und bietet die Installation an
+      location.href = u.asset.browser_download_url;
+      return;
+    }
+    $('u-btn').disabled = true;
+    $('u-btn').textContent = 'Lädt …';
+    $('u-bar').classList.remove('hidden');
+    const bar = $('u-bar').firstElementChild;
+    const res = await desk.update(u.asset.browser_download_url, u.asset.name, (p) => { bar.style.width = Math.round(p * 100) + '%'; });
+    if (!res || !res.ok) {
+      $('u-btn').disabled = false;
+      $('u-btn').textContent = 'Nochmal versuchen';
+      $('u-sub').textContent = 'Update fehlgeschlagen: ' + ((res && res.error) || 'unbekannter Fehler');
+      return;
+    }
+    bar.style.width = '100%';
+    $('u-btn').textContent = res.restarting ? 'Startet neu …' : 'Fertig';
+    $('u-sub').textContent = res.restarting
+      ? 'Die neue Version startet gleich.'
+      : 'Das Paket wurde geöffnet. Dort auf „Installieren“ klicken und das Spiel danach neu starten.';
+  }
+
+  $('u-btn').addEventListener('click', runUpdate);
+  $('s-ver').textContent = ownVersion;
+  $('s-check').addEventListener('click', async () => {
+    $('s-upd').textContent = 'Suche …';
+    try {
+      const u = await checkUpdate();
+      if (u.none) $('s-upd').textContent = u.reason || 'Du hast die neueste Version.';
+      else { $('s-upd').textContent = `Version ${u.version} ist da. Im Hauptmenü auf „Aktualisieren“ tippen.`; showUpdate(u); }
+    } catch (err) {
+      $('s-upd').textContent = 'Keine Verbindung zu GitHub. Bist du online?';
+    }
+  });
+  if (updatePlatform) checkUpdate().then((u) => { if (!u.none) showUpdate(u); }).catch(() => {});
+
   // ---------- Start ----------
   $('m-name').value = load('fk-name') || '';
   $('a-server').value = params.get('server') || load('fk-server') || '';

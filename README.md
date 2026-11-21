@@ -45,7 +45,17 @@ Hinweise:
 - Am Handy muss die Installation aus „unbekannten Quellen“ erlaubt werden. Die APK ist mit einem Test-Schlüssel signiert; bei einem Update kann es nötig sein, die alte Version vorher zu deinstallieren.
 - Spielstände der Desktop-App liegen unter Linux in `~/.config/Fabrik-Koop/saves`, unter Windows in `%APPDATA%\Fabrik-Koop\saves`.
 
-Eine neue Version veröffentlichen: `version` in `package.json` erhöhen, Tag setzen (`git tag v0.2.0 && git push --tags`), dann baut GitHub alle drei Dateien und legt ein Release an.
+### Updates in der App
+
+Ab Version 0.20.0 sucht die App beim Start selbst nach einer neuen Version (GitHub-Releases dieses Repos). Gibt es eine, erscheint im Hauptmenü **„⬆️ Update auf Version …“**. Unter ⚙️ Einstellungen kann man auch von Hand suchen.
+
+- **Windows:** „Jetzt aktualisieren“ lädt die neue `.exe` in denselben Ordner, startet sie und beendet die alte. Die alte Datei wird danach automatisch gelöscht.
+- **Linux:** Die neue `.deb` landet im Download-Ordner und wird installiert (das System fragt nach dem Passwort). Danach startet das Spiel neu. Ohne Passwortabfrage öffnet sich das Paket im Software-Center.
+- **Android:** „Herunterladen“ öffnet den Download im Browser; danach die Datei antippen und installieren. Alle APKs sind mit demselben Test-Schlüssel signiert (`android/app/fabrikkoop-test.keystore`), deshalb geht die neue Version einfach über die alte. Einmalig beim Wechsel auf 0.20.0 muss die alte App deinstalliert werden, weil ältere APKs einen anderen Schlüssel hatten.
+
+Spielstände bleiben bei jedem Update erhalten.
+
+Eine neue Version veröffentlichen: `version` in `package.json`, `public/version.js` und `android/app/build.gradle` erhöhen (ein Test prüft das), Tag setzen (`git tag v0.20.0 && git push origin v0.20.0`). GitHub baut dann alle drei Dateien und legt ein Release an, das die Apps als Update finden.
 
 ## Im Browser starten (Server von Hand)
 
@@ -183,6 +193,7 @@ npx cap sync android && cd android && ./gradlew assembleDebug   # braucht Androi
 ## Aufbau
 
 - `src/game.js`: Spiellogik (Karte, Gebäude, Förderbänder, Rezepte, Forschung). Läuft nur auf dem Server.
+- `desktop/updater.js`, `desktop/preload.js`: Updates der Desktop-App herunterladen und installieren.
 - `public/joincode.js`: wandelt die Adresse des Hosts in einen kurzen Beitritts-Code um und zurück.
 - `src/server.js`: HTTP-Server für die Dateien in `public/` und WebSocket-Server, der jede Welt mit 10 Ticks pro Sekunde simuliert und den Zustand an alle Spieler schickt.
 - `desktop/main.js`: Desktop-App (Electron). Startet den Server im Hintergrund und öffnet das Spielfenster.
