@@ -26,8 +26,9 @@ function create(canvas) {
   scene.background = new THREE.Color(0x7cc8e8);
   scene.fog = new THREE.Fog(0x7cc8e8, 60, 140);
 
-  const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 400);
-  const view = { az: 0.35, azTarget: 0.35, el: 0.95, dist: 22, cam: { x: 0, y: 0 } };
+  // Fast senkrechter Blick von oben, gerade ausgerichtet: aufgeräumte Draufsicht wie ein Bauplan
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 400);
+  const view = { az: 0, azTarget: 0, el: 1.2, dist: 26, cam: { x: 0, y: 0 } };
 
   // Licht: weicher Himmel + Sonne mit Schatten
   scene.add(new THREE.HemisphereLight(0xffffff, 0x9fcf7a, 1.25));
@@ -236,9 +237,10 @@ function create(canvas) {
     creamDark: mat(0xd9d4c8),
     grey: mat(0xffffff, { map: railTex }),
     dark: mat(0x596173),
-    beltBase: mat(0x353b47),
-    rail: mat(0xf1f4f9),
+    beltBase: mat(0x2d3233),
+    rail: mat(0xd2d7d8),
     white: mat(0xffffff),
+    port: mat(0xf07a3c),
     wood: mat(0xa0703c),
     flame: mat(0xffb030, { emissive: 0xff7a10, emissiveIntensity: 0.9 }),
     roof: Object.fromEntries(Object.entries(ROOF).map(([k, c]) => [k, mat(c, { map: panelTex })])),
@@ -334,10 +336,11 @@ function create(canvas) {
     c.width = world.w * S;
     c.height = world.h * S;
     const g = c.getContext('2d');
+    // Kräftiges, ruhiges Grün mit leichter Schattierung pro Feld
     for (let y = 0; y < world.h; y++) {
       for (let x = 0; x < world.w; x++) {
-        const n = (Math.sin(x * 0.35) + Math.cos(y * 0.29) + Math.sin((x + y) * 0.17)) / 6 + hash(x, y) * 0.08;
-        g.fillStyle = `hsl(${96 + n * 12}, 50%, ${60 + n * 10}%)`;
+        const n = (Math.sin(x * 0.21) + Math.cos(y * 0.17)) / 4 + (hash(x, y) - 0.5) * 0.25;
+        g.fillStyle = `hsl(${128 + n * 4}, 25%, ${42 + n * 3}%)`;
         g.fillRect(x * S, y * S, S, S);
       }
     }
@@ -368,7 +371,8 @@ function create(canvas) {
       const px = x * S + S * (0.3 + hash(x, y, 8) * 0.4), py = y * S + S * 0.5;
       g.beginPath(); g.moveTo(px - S * 0.22, py); g.quadraticCurveTo(px - S * 0.11, py - S * 0.12, px, py); g.quadraticCurveTo(px + S * 0.11, py - S * 0.12, px + S * 0.22, py); g.stroke();
     }
-    const soil = { h: '#7cae58', t: '#c4c8b8', e: '#c4ae9e', k: '#c8cf9a', c: '#9a9a8a', w: '#b4b0c8', u: '#b0c890', q: '#f0e2ac', b: '#d8b0a0', s: '#e8e2a8', g: '#ccc4ac' };
+    // Vorkommen als gedämpfte Flecken, die zum Grün passen
+    const soil = { h: '#4d7c4f', t: '#7f8a80', e: '#80705e', k: '#87916a', c: '#5a5f58', w: '#76708e', u: '#6f8a5a', q: '#a8a070', b: '#8e6a5a', s: '#a09a62', g: '#8a856e' };
     for (let y = 0; y < world.h; y++) {
       for (let x = 0; x < world.w; x++) {
         const t = world.tiles[y * world.w + x];
@@ -377,30 +381,12 @@ function create(canvas) {
           g.beginPath();
           g.ellipse(x * S + S / 2, y * S + S / 2, S * 0.74, S * 0.7, hash(x, y, 5) * 3, 0, Math.PI * 2);
           g.fill();
-        } else if (world.tiles[y * world.w + x] !== '.') {
-          // Wasser: nichts weiter
-        } else if (hash(x, y, 1) < 0.3) {
-          const px = x * S + S * 0.2 + hash(x, y, 2) * S * 0.6;
-          const py = y * S + S * 0.2 + hash(x, y, 3) * S * 0.6;
-          g.strokeStyle = 'rgba(70,130,50,0.45)';
-          g.lineWidth = S / 16;
-          g.lineCap = 'round';
-          g.beginPath();
-          g.moveTo(px - S * 0.09, py + S * 0.09); g.lineTo(px - S * 0.12, py - S * 0.06);
-          g.moveTo(px, py + S * 0.09); g.lineTo(px, py - S * 0.12);
-          g.moveTo(px + S * 0.09, py + S * 0.09); g.lineTo(px + S * 0.12, py - S * 0.06);
-          g.stroke();
-        } else if (hash(x, y, 1) < 0.35) {
-          g.fillStyle = ['#ffffff', '#ffe066', '#ffb3c7'][Math.floor(hash(x, y, 4) * 3)];
-          g.beginPath();
-          g.arc(x * S + S / 2, y * S + S / 2, S * 0.09, 0, Math.PI * 2);
-          g.fill();
         }
       }
     }
     // feines Raster
-    g.strokeStyle = 'rgba(255,255,255,0.13)';
-    g.lineWidth = 1;
+    g.strokeStyle = 'rgba(20,50,25,0.32)';
+    g.lineWidth = Math.max(1, S / 14);
     g.beginPath();
     for (let i = 1; i < world.w; i++) { g.moveTo(i * S + 0.5, 0); g.lineTo(i * S + 0.5, c.height); }
     for (let i = 1; i < world.h; i++) { g.moveTo(0, i * S + 0.5); g.lineTo(c.width, i * S + 0.5); }
@@ -502,7 +488,8 @@ function create(canvas) {
 
   // --- Gebäude ---
   const BM = {
-    plinth: mat(0xffffff, { map: concreteTex }),
+    // Sockel in dunklem Violett, wie ein Rahmen um jede Maschine
+    plinth: mat(0x6a64a8, { map: concreteTex }),
     brickRed: mat(0xffffff, { map: brickTex(10, 55, '#d8cfc0', 2, 1, true) }),
     brickDark: mat(0xffffff, { map: brickTex(8, 45, '#a89c8c', 3, 2, true) }),
     stone: mat(0xffffff, { map: cobbleTex }),
@@ -595,7 +582,7 @@ function create(canvas) {
   function addOutput(g, ghost, z = 0, ang = 0) {
     const pivot = new THREE.Group();
     pivot.rotation.y = ang;
-    const tab = new THREE.Mesh(G.tab, ghost || M.grey);
+    const tab = new THREE.Mesh(G.tab, ghost || M.port);
     tab.position.set(0.44, 0.115, z);
     const arrow = new THREE.Mesh(G.arrow, ghost || M.dark);
     arrow.rotation.set(Math.PI / 2, 0, -Math.PI / 2);
@@ -621,6 +608,17 @@ function create(canvas) {
     flatArrow: new THREE.ShapeGeometry(arrowShape).rotateX(-Math.PI / 2),
     post: new RoundedBoxGeometry(0.2, 0.16, 0.2, 2, 0.05),
   };
+  // flacher weißer Rahmen auf dem Band (Kennzeichen für Bandteile)
+  const frameBar = new THREE.BoxGeometry(1, 0.02, 1);
+  function whiteFrame(g, size, ghost) {
+    const w = 0.06;
+    for (const [px, pz, sx, sz] of [[0, -size / 2, size + w, w], [0, size / 2, size + w, w], [-size / 2, 0, w, size], [size / 2, 0, w, size]]) {
+      const bar = new THREE.Mesh(frameBar, ghost || M.rail);
+      bar.scale.set(sx, 1, sz);
+      bar.position.set(px, BELT_TOP + 0.014, pz);
+      g.add(bar);
+    }
+  }
   function makeBeltPart(g, kind, ghost, opt = {}) {
     const m = (geo, material) => new THREE.Mesh(geo, ghost || material);
     if (!opt.boxOnly) { const f = m(BG.crossFrame, M.beltBase); f.position.y = 0.05; g.add(f); }
@@ -629,9 +627,8 @@ function create(canvas) {
       const a = m(G.beltTop, beltMat); a.position.y = BELT_TOP;
       const b = m(G.beltTop, beltMat); b.position.y = BELT_TOP + 0.004; b.rotation.y = -Math.PI / 2;
       g.add(a, b);
-      for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-        const k = m(PG.post, partMat.kreuzung); k.position.set(sx * 0.4, 0.14, sz * 0.4); g.add(k);
-      }
+      // weißer quadratischer Rahmen markiert die Kreuzung
+      whiteFrame(g, 0.62, ghost);
       return g;
     }
     const split = kind === 'verteiler';
@@ -642,7 +639,7 @@ function create(canvas) {
       for (const sd of ins) { const t = m(G.beltHalfIn, beltMat); t.rotation.y = SIDE_ROT[sd] + Math.PI; t.position.y = BELT_TOP + (h += 0.002); g.add(t); }
       for (const sd of outs) { const t = m(G.beltHalfOut, beltMat); t.rotation.y = SIDE_ROT[sd]; t.position.y = BELT_TOP + (h += 0.002); g.add(t); }
     }
-    if (split) return g; // Verteiler: nur Bandstücke, sieht aus wie ein normales Band
+    if (split) { whiteFrame(g, 0.36, ghost); return g; } // Verteiler: Bandstücke mit kleinem weißen Rahmen in der Mitte
     const body = m(PG.housing, partMat[kind]); body.position.y = 0.25; g.add(body);
     const cap = m(PG.cap, partCap[kind]); cap.position.y = 0.41; g.add(cap);
     // dunkle Öffnungen, wo Bänder hinein- oder herauslaufen
@@ -1016,23 +1013,16 @@ function create(canvas) {
     const c = document.createElement('canvas');
     c.width = 128; c.height = 64;
     const x = c.getContext('2d');
-    x.fillStyle = '#4a5262';
+    // fast schwarzer Gurt ohne Fugen, damit nebeneinanderliegende Bänder zu einer Fläche verschmelzen
+    x.fillStyle = '#2d3233';
     x.fillRect(0, 0, 128, 64);
-    // Querlamellen des Gurts
-    x.fillStyle = '#414858';
-    for (let i = 0; i < 8; i++) x.fillRect(i * 16, 0, 3, 64);
-    // leichte Schattierung zu den Rändern
-    const gr = x.createLinearGradient(0, 0, 0, 64);
-    gr.addColorStop(0, 'rgba(0,0,0,0.18)'); gr.addColorStop(0.2, 'rgba(0,0,0,0)'); gr.addColorStop(0.8, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.18)');
-    x.fillStyle = gr; x.fillRect(0, 0, 128, 64);
-    // zwei kräftige, helle Pfeile pro Feld
-    x.strokeStyle = '#e4e9f2';
-    x.lineWidth = 9;
-    x.lineCap = x.lineJoin = 'round';
-    for (let i = 0; i < 2; i++) {
-      const px = 26 + i * 64;
-      x.beginPath(); x.moveTo(px, 16); x.lineTo(px + 16, 32); x.lineTo(px, 48); x.stroke();
-    }
+    // ein kleiner türkiser Bogenpfeil pro Feld (in Feld-Einheiten gezeichnet: 128 px × 80 px pro Feld)
+    x.setTransform(128, 0, 0, 80, 0, 0);
+    x.strokeStyle = '#4fb0c0';
+    x.lineWidth = 0.075;
+    x.lineCap = 'round';
+    x.beginPath(); x.arc(0.38, 0.4, 0.17, -0.95, 0.95); x.stroke();
+    x.setTransform(1, 0, 0, 1, 0, 0);
     const t = new THREE.CanvasTexture(c);
     t.wrapS = THREE.RepeatWrapping;
     t.colorSpace = THREE.SRGBColorSpace;

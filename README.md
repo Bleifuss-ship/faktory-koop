@@ -69,6 +69,12 @@ Optionale Umgebungsvariablen: `PORT` (Standard 3000), `SAVE_DIR` (Standard `./sa
 3. Rohstoffe durch **Maschinen** schicken und die Produkte zur **Zentrale** in der Mitte bringen.
 4. Die Forschungsziele oben links erfüllen, um neue Gebäude und Verbesserungen freizuschalten.
 
+### Aussehen
+
+Aufgeräumte Draufsicht wie ein Bauplan: Die Kamera schaut fast senkrecht und gerade ausgerichtet auf ein dunkelgrünes Raster. Förderbänder sind fast schwarz mit kleinen türkisen Bogenpfeilen; liegen Bänder nebeneinander, verschmelzen sie zu einer Fläche, und nur die Außenkanten bekommen eine helle Schiene. Kreuzungen und Verteiler tragen einen weißen Rahmen. Maschinen stehen auf violetten Sockeln mit orangefarbener Ausgabe-Lasche. Alle Grafiken sind selbst gezeichnet.
+
+![Draufsicht mit Bändern und Bohrern](docs/screenshot-stil.png)
+
 ### Geld
 
 Gebaut wird mit **Talern** (Anzeige oben rechts). Jede Lieferung an die Zentrale bringt Taler. Verarbeitete Waren sind mehr wert: Jedes Produkt bringt 30 % mehr als seine Zutaten zusammen, plus etwas für die Arbeitszeit. Abreißen erstattet den vollen Preis. Neue Welten starten mit 300 Talern, alte Spielstände bekommen einmalig 1.000.
