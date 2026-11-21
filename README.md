@@ -54,7 +54,7 @@ Optionale Umgebungsvariablen: `PORT` (Standard 3000), `SAVE_DIR` (Standard `./sa
 
 Gebaut wird mit **Talern** (Anzeige oben rechts). Jede Lieferung an die Zentrale bringt Taler. Verarbeitete Waren sind mehr wert: Jedes Produkt bringt 30 % mehr als seine Zutaten zusammen, plus etwas für die Arbeitszeit. Abreißen erstattet den vollen Preis. Neue Welten starten mit 300 Talern, alte Spielstände bekommen einmalig 1.000.
 
-- Baukosten: Förderband 2 · Kreuzung 4 · Verteiler 20 · Zusammenführer 20 · Bohrer 25 · Sägewerk 40 · Schmelzofen 60 · Presse 120 · Steinbrecher 150 · Hochofen 300 · Werkbank 400 · Chemiewerk 800 · Fabrikator 1.500 · Zentrifuge 2.500 · Montagehalle 5.000
+- Baukosten: Förderband 2 · Kreuzung 4 · Verteiler 20 · Bohrer 25 · Sägewerk 40 · Schmelzofen 60 · Presse 120 · Steinbrecher 150 · Hochofen 300 · Werkbank 400 · Chemiewerk 800 · Fabrikator 1.500 · Zentrifuge 2.500 · Montagehalle 5.000
 - Beispiele für Erlöse je Stück: Holz 1 · Eisenerz 2 · Eisenbarren 5 · Zahnrad 8 · Motor 24 · Steuerchip 65 · Roboterarm 120 · Computer 230 · Raumsonde 1.262
 
 ### Förderbänder
@@ -69,7 +69,7 @@ Elf Rohstoffe: Holz (Wald), Stein, Eisenerz, Kupfererz, Kohle, Quarzsand (an Ufe
 
 ### Die Karte
 
-Neue Welten sind 160 × 160 Felder groß (vorher 80 × 80) und werden mit Rauschen natürlich erzeugt: große Wälder mit Lichtungen, felsiges Hochland mit Steinfeldern, Seen und ein Fluss, Erzfelder mit unregelmäßigen Rändern. Im **Wasser** gehen nur Förderbänder (als Brücke), Kreuzungen, Verteiler und Zusammenführer. Unten rechts zeigt eine **Übersichtskarte** die ganze Welt; antippen oder klicken springt dorthin, Taste M blendet sie aus. Bestehende kleinere Welten werden beim Laden automatisch auf 160 × 160 erweitert: Die alte Fläche mit allen Gebäuden bleibt in der Mitte, drumherum entsteht neues Land mit Seen, Fluss und allen Erzen.
+Neue Welten sind 160 × 160 Felder groß (vorher 80 × 80) und werden mit Rauschen natürlich erzeugt: große Wälder mit Lichtungen, felsiges Hochland mit Steinfeldern, Seen und ein Fluss, Erzfelder mit unregelmäßigen Rändern. Im **Wasser** gehen nur Förderbänder (als Brücke), Kreuzungen und Verteiler. Unten rechts zeigt eine **Übersichtskarte** die ganze Welt; antippen oder klicken springt dorthin, Taste M blendet sie aus. Bestehende kleinere Welten werden beim Laden automatisch auf 160 × 160 erweitert: Die alte Fläche mit allen Gebäuden bleibt in der Mitte, drumherum entsteht neues Land mit Seen, Fluss und allen Erzen.
 
 ### Produktionsketten
 
@@ -86,11 +86,15 @@ Neue Welten sind 160 × 160 Felder groß (vorher 80 × 80) und werden mit Rausch
 | Zentrifuge | Uranerz → Uranpellet |
 | Montagehalle | Roboterarm + Bohrkopf + Batterie → Helferbot · Turbine + 2× Isolierkabel + Energiezelle → Generator · 2× Steuerchip + Kunstharz + Glühbirne → Computer · 2× Solarzelle + Leichtrahmen + Isolierkabel → Solarsegel · Computer + Generator + 2× Solarsegel → Raumsonde |
 
-Der **Verteiler** (Taste 5) teilt ein Band auf: Gegenstände gehen abwechselnd nach vorne, rechts und links. Der **Zusammenführer** (Taste Z) macht das Gegenteil: Er nimmt Bänder von hinten, links und rechts an und schickt alles gerecht abwechselnd nach vorne auf ein Band. Beide sind von Anfang an freigeschaltet, kosten 20 Taler und lassen sich wie die Kreuzung direkt auf ein vorhandenes Band setzen (dann zählt die gewählte Richtung). Bänder laufen direkt in einen bunten, runden Kasten mit dunklen Öffnungen hinein und wieder heraus, weiße Pfeile oben zeigen die Richtungen (Verteiler blau, Zusammenführer türkis). Die Kreuzung erkennt man an vier gelben Eckpfosten. Förderbänder haben einen dunklen Gurt mit großen hellen Pfeilen und runde helle Seitenschienen; mündet ein Band seitlich ein, ist die Schiene dort offen. Auch alle Gebäude stehen auf einem Sockel, der das ganze Feld ausfüllt, sodass Bänder ohne Spalt anschließen.
+Der **Verteiler** (Taste 5) teilt ein Band auf: Gegenstände gehen abwechselnd nach vorne, rechts und links. Er ist von Anfang an freigeschaltet, kostet 20 Taler und lässt sich wie die Kreuzung direkt auf ein vorhandenes Band setzen (dann zählt die gewählte Richtung).
+
+**Zusammenführen geht automatisch:** Laufen zwei oder drei Bänder (von hinten, links, rechts) in ein Band hinein, wird daraus von selbst eine Zusammenführung mit genau so vielen Eingängen. Alle Eingänge kommen gerecht abwechselnd dran, auch wenn es sich staut; man erkennt sie am türkisen Kasten mit einer Öffnung pro Eingang. Einen Zusammenführer zum Setzen gibt es deshalb nicht mehr, alte Spielstände wandeln ihn in ein Band um.
+
+Auf ein Feld Band passen **drei Gegenstände** hintereinander. Verteiler (blau) sind runde Kästen mit dunklen Öffnungen, weiße Pfeile oben zeigen die Richtungen. Die Kreuzung erkennt man an vier gelben Eckpfosten. Förderbänder haben einen dunklen Gurt mit großen hellen Pfeilen und runde helle Seitenschienen; mündet ein Band seitlich ein, ist die Schiene dort offen. Auch alle Gebäude stehen auf einem Sockel, der das ganze Feld ausfüllt, sodass Bänder ohne Spalt anschließen.
 
 Die **Montagehalle** braucht drei Zutaten gleichzeitig, also am besten von hinten, links und rechts anliefern.
 
-<p align="center"><img src="docs/screenshot-zusammenfuehrer.png" width="720" alt="Zusammenführer: drei Bänder werden zu einem"></p>
+<p align="center"><img src="docs/screenshot-zusammenfuehrer.png" width="720" alt="Automatische Zusammenführung: drei Bänder werden zu einem"></p>
 
 ### Techbaum
 
@@ -98,7 +102,7 @@ Alles, was an der Zentrale ankommt, landet im Lager. Im Techbaum (Taste T oder K
 
 | Technik | Braucht | Kosten | Wirkung |
 |---|---|---|---|
-| Grundlagen | – | – | Bänder, Kreuzungen, Verteiler, Zusammenführer, Bohrer, Sägewerk und Schmelzofen. |
+| Grundlagen | – | – | Bänder, Kreuzungen, Verteiler, Bohrer, Sägewerk und Schmelzofen. |
 | Logistik | Grundlagen | 20× Bretter + 10× Ziegel | Bänder laufen 25 % schneller. |
 | Metallbau | Grundlagen | 20× Eisenbarren + 10× Bretter | Schaltet die Presse frei. |
 | Steinbruch | Grundlagen | 20× Ziegel + 10× Eisenbarren | Schaltet den Steinbrecher frei (Kies, Tonerde, Schwefelpulver). |
@@ -130,7 +134,7 @@ Alles, was an der Zentrale ankommt, landet im Lager. Im Techbaum (Taste T oder K
 
 | | PC | Handy |
 |---|---|---|
-| Bauen | Gebäude wählen (oder Taste 1–9, 0, K, Z, V, B, N), klicken/ziehen | Gebäude wählen, tippen/ziehen |
+| Bauen | Gebäude wählen (oder Taste 1–9, 0, K, V, B, N), klicken/ziehen | Gebäude wählen, tippen/ziehen |
 | Drehen | R | ⟳ |
 | Abreißen | 🗑 wählen oder Taste X, klicken/ziehen | 🗑 wählen, tippen |
 | Kamera | WASD, Leertaste/mittlere Maustaste + ziehen, Mausrad zoomt, Q/E oder 🧭 dreht | ✋ + ziehen, zwei Finger zoomen und drehen, 🧭 dreht |
