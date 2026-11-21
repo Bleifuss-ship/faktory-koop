@@ -58,6 +58,11 @@
       </header>
 
       <section data-page="home">
+        <div id="m-update" class="m-update hidden">
+          <div class="m-update-text"><b id="u-title">Update verfügbar</b><small id="u-sub"></small></div>
+          <button id="u-btn" type="button">Aktualisieren</button>
+          <div class="m-update-bar hidden" id="u-bar"><i></i></div>
+        </div>
         <label class="m-name">Dein Name <input id="m-name" maxlength="16" autocomplete="nickname" placeholder="z. B. Sandra"></label>
         <button id="m-continue" class="m-big primary hidden" type="button"><b>▶ Weiterspielen</b><small></small></button>
         <button class="m-big" type="button" data-go="worlds" data-local><b>🏭 Spielen</b><small>Eigene Welt auf diesem Gerät starten oder laden</small></button>
@@ -118,6 +123,11 @@
             <button type="button" data-v="off">Aus</button>
           </div>
         </div>
+        <div class="m-set">
+          <span>Version <b id="s-ver"></b></span>
+          <button type="button" id="s-check" class="m-small">Nach Updates suchen</button>
+        </div>
+        <p class="m-sub" id="s-upd"></p>
         <p class="m-sub" id="s-note"></p>
         <button type="button" class="m-back" data-go="home">← Zurück</button>
       </section>
@@ -157,6 +167,7 @@
 
   <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
   <script type="module" src="render3d.js"></script>
+  <script src="version.js"></script>
   <script src="joincode.js"></script>
   <script type="module" src="client.js"></script>
 </body>
