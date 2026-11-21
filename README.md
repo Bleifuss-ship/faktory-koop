@@ -19,7 +19,26 @@ Fertige Apps gibt es bei jedem Build in GitHub Actions (Reiter „Actions“ →
 | `FabrikKoop-<version>-windows-x64-portable.exe` | Windows 10/11 | Spiel **mit eingebautem Server**, ohne Installation per Doppelklick startbar |
 | `FabrikKoop-<version>-android.apk` | Android 5.1+ | Spiel **ohne eigenen Server**: verbindet sich mit einem Rechner, auf dem Fabrik-Koop läuft |
 
-So spielt ihr zusammen: Eine Person startet die Linux- oder Windows-App. Auf dem Startbildschirm steht „Mitspieler im selben Netzwerk verbinden sich mit: 192.168.…:3000“. Alle anderen tragen diese Adresse im Feld **Server** ein (am Handy ist das Pflicht) und wählen dieselbe Welt.
+So spielt ihr zusammen (Code-System):
+1. Der **Host** startet die Linux- oder Windows-App, wählt im Hauptmenü **„👥 Mitspieler einladen“** und startet eine Welt. Danach steht oben im Spiel ein kurzer **Code** (z. B. `K7Q2M`), auch im Menü (Esc oder ☰).
+2. Die **Mitspieler** wählen im Hauptmenü **„🔑 Mit Code beitreten“**, tippen den Code ein und landen direkt in der Welt des Hosts. Das geht am PC und in der Handy-App.
+
+Der Code ist die Netzwerk-Adresse des Hosts in Kurzform, deshalb müsst ihr im **selben Netzwerk** (WLAN) sein. Im typischen Heim-WLAN hat er 5 Zeichen. Wer lieber die Adresse eintippt, findet unter „Mit Code beitreten“ → „Ohne Code: Adresse eingeben“ das alte Feld.
+
+### Hauptmenü
+
+![Hauptmenü](docs/screenshot-menue.png)
+
+- **▶ Weiterspielen:** zuletzt gespielte Welt oder letzter Code
+- **🏭 Spielen:** eigene Welten auf diesem Gerät laden oder eine neue anlegen
+- **👥 Mitspieler einladen:** Welt starten und den Code anzeigen
+- **🔑 Mit Code beitreten:** bei einem Freund mitspielen
+- **⚙️ Einstellungen:** Grafik 3D/2D, Übersichtskarte an/aus
+- **❔ Steuerung** und **Beenden** (Desktop-App)
+
+Im Spiel öffnet **Esc** oder **☰** das Menü: Code für Mitspieler, Steuerung und „Zum Hauptmenü“ (die Welt wird gespeichert).
+
+![Menü im Spiel mit Code](docs/screenshot-code.png)
 
 Hinweise:
 - Windows zeigt beim ersten Start eventuell „Der Computer wurde durch Windows geschützt“, weil die Datei nicht signiert ist: „Weitere Informationen“ → „Trotzdem ausführen“. Die Windows-Firewall fragt, ob Netzwerkzugriff erlaubt ist: für Mitspieler im WLAN „Private Netzwerke“ erlauben.
@@ -37,7 +56,7 @@ npm install
 npm start
 ```
 
-Dann im Browser `http://localhost:3000` öffnen. Mitspieler im selben WLAN öffnen `http://<IP-deines-Rechners>:3000`. Alle, die denselben **Weltnamen** eingeben, spielen zusammen. Der Link enthält die Welt (`?welt=name`) und kann direkt verschickt werden.
+Dann im Browser `http://localhost:3000` öffnen. Mitspieler im selben WLAN treten mit dem Code bei oder öffnen `http://<IP-deines-Rechners>:3000` und wählen „Spiel auf diesem Rechner beitreten“.
 
 Welten werden alle 15 Sekunden und beim Beenden in `saves/` gespeichert. Leere Welten pausieren.
 
@@ -143,6 +162,7 @@ Alles, was an der Zentrale ankommt, landet im Lager. Im Techbaum (Taste T oder K
 | Drehen | R | ⟳ |
 | Abreißen | 🗑 wählen oder Taste X, klicken/ziehen | 🗑 wählen, tippen |
 | Kamera | WASD, Leertaste/mittlere Maustaste + ziehen, Mausrad zoomt, Q/E oder 🧭 dreht | ✋ + ziehen, zwei Finger zoomen und drehen, 🧭 dreht |
+| Menü | Esc oder ☰ | ☰ |
 
 ## Selbst bauen
 
@@ -157,6 +177,7 @@ npx cap sync android && cd android && ./gradlew assembleDebug   # braucht Androi
 ## Aufbau
 
 - `src/game.js`: Spiellogik (Karte, Gebäude, Förderbänder, Rezepte, Forschung). Läuft nur auf dem Server.
+- `public/joincode.js`: wandelt die Adresse des Hosts in einen kurzen Beitritts-Code um und zurück.
 - `src/server.js`: HTTP-Server für die Dateien in `public/` und WebSocket-Server, der jede Welt mit 10 Ticks pro Sekunde simuliert und den Zustand an alle Spieler schickt.
 - `desktop/main.js`: Desktop-App (Electron). Startet den Server im Hintergrund und öffnet das Spielfenster.
 - `android/`, `capacitor.config.json`: Android-App (Capacitor), die den Browser-Client aus `public/` enthält.
