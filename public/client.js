@@ -248,22 +248,36 @@
   // Ein Band, das nicht von hinten, aber genau von einer Seite beliefert wird, ist eine Kurve:
   // +1 = Zulauf von rechts, -1 = Zulauf von links (relativ zur Laufrichtung), 0 = gerade.
   const curveCache = { v: -1, m: new Map() };
+  // Liefert das Nachbarfeld (b.x+ox, b.y+oy) Gegenstände in Band b?
+  function feedsInto(b, ox, oy) {
+    const n = world.grid.get((b.x + ox) + ',' + (b.y + oy));
+    if (!n || n === b || n.size > 1) return false;
+    if (n.kind === 'kreuzung') return true; // Kreuzungen geben geradeaus weiter
+    if (n.kind === 'verteiler') { // Verteiler geben nach vorne, rechts und links aus
+      const back = DIRS[(n.dir + 2) % 4];
+      return !(n.x + back[0] === b.x && n.y + back[1] === b.y);
+    }
+    const [fx, fy] = DIRS[n.dir];
+    return n.x + fx === b.x && n.y + fy === b.y;
+  }
+  // Automatische Zusammenführung: gerades Band, in das zwei oder drei Bänder hineinlaufen.
+  // Gibt die Eingänge zurück ('back', 'right', 'left') oder null.
+  function beltMerge(b) {
+    if (b.kind !== 'band') return null;
+    const ins = [];
+    for (const [name, o] of [['back', 2], ['right', 1], ['left', 3]]) {
+      const [ox, oy] = DIRS[(b.dir + o) % 4];
+      if (feedsInto(b, ox, oy)) ins.push(name);
+    }
+    if (ins.length < 2) return null;
+    return ins;
+  }
   function beltCurve(b) {
     if (curveCache.v !== world.version) { curveCache.v = world.version; curveCache.m.clear(); }
     let c = curveCache.m.get(b.id);
     if (c !== undefined) return c;
     c = 0;
-    const feeds = (ox, oy) => {
-      const n = world.grid.get((b.x + ox) + ',' + (b.y + oy));
-      if (!n || n === b || n.size > 1) return false;
-      if (n.kind === 'kreuzung') return true; // Kreuzungen geben geradeaus weiter
-      if (n.kind === 'verteiler') { // Verteiler geben nach vorne, rechts und links aus
-        const back = DIRS[(n.dir + 2) % 4];
-        return !(n.x + back[0] === b.x && n.y + back[1] === b.y);
-      }
-      const [fx, fy] = DIRS[n.dir];
-      return n.x + fx === b.x && n.y + fy === b.y;
-    };
+    const feeds = (ox, oy) => feedsInto(b, ox, oy);
     const [dx, dy] = DIRS[b.dir];
     const [rx, ry] = DIRS[(b.dir + 1) % 4];
     if (!feeds(-dx, -dy)) {
@@ -584,7 +598,7 @@
       c.translate(x + s / 2, y + s / 2);
       c.rotate(d * Math.PI / 2);
       c.fillStyle = '#353b47';
-      c.fillRect(-s / 2, -s / 2, s, s);
+      if (!opts.boxOnly) c.fillRect(-s / 2, -s / 2, s, s);
       const stub = (a, out) => { c.save(); c.rotate(a); beltStrip(c, out ? 0 : -s / 2, -s * 0.4, s / 2, s * 0.8, s, t); c.restore(); };
       if (kind === 'kreuzung') {
         beltStrip(c, -s / 2, -s * 0.4, s, s * 0.8, s, t);
@@ -593,10 +607,13 @@
         for (const [ox, oy] of [[-0.5, -0.5], [0.3, -0.5], [-0.5, 0.3], [0.3, 0.3]]) { roundRect(c, ox * s, oy * s, s * 0.2, s * 0.2, s * 0.05); c.fill(); }
       } else {
         const split = kind === 'verteiler';
-        const ins = split ? [Math.PI] : [Math.PI, Math.PI / 2, -Math.PI / 2];
+        const ANG = { back: Math.PI, right: Math.PI / 2, left: -Math.PI / 2 };
+        const ins = split ? [Math.PI] : (opts.ins || ['back', 'right', 'left']).map((n) => ANG[n]);
         const outs = split ? [0, Math.PI / 2, -Math.PI / 2] : [0];
-        for (const a of ins) stub(a + Math.PI, false);
-        for (const a of outs) stub(a, true);
+        if (!opts.boxOnly) {
+          for (const a of ins) stub(a + Math.PI, false);
+          for (const a of outs) stub(a, true);
+        }
         // Kasten mit Schatten
         c.fillStyle = 'rgba(0,0,0,0.25)';
         roundRect(c, -s * 0.33 + s * 0.04, -s * 0.33 + s * 0.05, s * 0.66, s * 0.66, s * 0.12); c.fill();
@@ -970,7 +987,7 @@
       if (!world.w) return;
       updateKeys();
       drawMinimap();
-      r3d.render({ world, items, crossItems, busy, beltSpeed, beltCurve, beltJoin, beltSides, beltPoint, lastTickAt, hover, tool, dir, cursors, players, defs, canPlace });
+      r3d.render({ world, items, crossItems, busy, beltSpeed, beltCurve, beltJoin, beltSides, beltMerge, beltPoint, lastTickAt, hover, tool, dir, cursors, players, defs, canPlace });
       return;
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1059,17 +1076,23 @@
       const [sx, sy] = toScreen(wx, wy);
       ctx.fillStyle = 'rgba(20,30,40,0.28)';
       ctx.beginPath(); ctx.ellipse(sx + s * 0.03, sy + s * 0.12, s * 0.2, s * 0.08, 0, 0, Math.PI * 2); ctx.fill();
-      drawItem(ctx, items[i + 2], sx, sy, s * 0.5);
+      drawItem(ctx, items[i + 2], sx, sy, s * 0.36);
     }
     for (let i = 0; i < crossItems.length; i += 5) {
       const [dx, dy] = DIRS[crossItems[i + 4]];
       const p = Math.min(1, crossItems[i + 3] + (crossItems[i + 3] < 1 ? beltSpeed * dt : 0));
       const [sx, sy] = toScreen(crossItems[i] + 0.5 + dx * (p - 0.5), crossItems[i + 1] + 0.5 + dy * (p - 0.5));
-      drawItem(ctx, crossItems[i + 2], sx, sy, s * 0.5);
+      drawItem(ctx, crossItems[i + 2], sx, sy, s * 0.36);
     }
 
     for (const b of visible) {
-      if (b.kind === 'band' || b.kind === 'kreuzung') continue;
+      if (b.kind === 'band') {
+        // automatische Zusammenführung: Kasten über dem Band (über den Gegenständen)
+        const ins = beltMerge(b);
+        if (ins) { const [sx, sy] = toScreen(b.x, b.y); drawBuilding(ctx, 'zusammenfuehrer', sx, sy, s, b.dir, { boxOnly: true, ins }); }
+        continue;
+      }
+      if (b.kind === 'kreuzung') continue;
       const [sx, sy] = toScreen(b.x, b.y);
       drawBuilding(ctx, b.kind, sx, sy, s, b.dir, { size: b.size, busy: busy.get(b.id) });
     }

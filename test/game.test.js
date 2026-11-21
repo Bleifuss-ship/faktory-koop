@@ -3,6 +3,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { World, TECHS, DEFS } = require('../src/game');
 
+// Gegenstände auf einem Band (Bänder tragen jetzt mehrere hintereinander)
+const onBelt = (b) => (b.state.list || []).map((it) => it.item);
+
 // Kleine Testwelt mit einem Eisenvorkommen links von der Zentrale
 function makeWorld(depositChar = 'e') {
   const tiles = '.'.repeat(400).split('');
@@ -98,7 +101,7 @@ test('Verteiler verteilt abwechselnd', () => {
   w.place('band', 5, 4, 3); // links (oben)
   const v = w.at(5, 5);
   for (let i = 0; i < 3; i++) { w.insert(v, 'stein'); w.step(); }
-  assert.ok(w.at(6, 5).state.item && w.at(5, 6).state.item && w.at(5, 4).state.item);
+  assert.ok(onBelt(w.at(6, 5)).length && onBelt(w.at(5, 6)).length && onBelt(w.at(5, 4)).length);
 });
 
 test('Band nimmt nichts frontal an', () => {
@@ -135,7 +138,11 @@ test('Speichern und Laden, alte Spielstände werden umgewandelt', () => {
   assert.strictEqual(w3.tileAt(o, o), 'e');
   assert.deepStrictEqual(w3.research.done, ['grundlagen']);
   assert.ok(!w3.at(1 + o, 1 + o));
-  assert.strictEqual(w3.at(2 + o, 2 + o).state.item, null);
+  assert.deepStrictEqual(onBelt(w3.at(2 + o, 2 + o)), []);
+  // altes Einzel-Item auf einem Band wird übernommen, alter Zusammenführer wird zum Band
+  const w4 = World.fromJSON({ ...w.toJSON(), buildings: [{ kind: 'band', x: 4, y: 4, dir: 0, state: { item: 'stein', p: 0.4 } }, { kind: 'zusammenfuehrer', x: 5, y: 4, dir: 0 }] });
+  assert.deepStrictEqual(onBelt(w4.at(4 + o, 4 + o)), ['stein']);
+  assert.strictEqual(w4.at(5 + o, 4 + o).kind, 'band');
 });
 
 test('Karte: groß, mit Wasser, Wald und allen Erzen, Zentrale frei', () => {
@@ -266,8 +273,8 @@ test('Kreuzung: von Hand gesetzt, beide Richtungen laufen geradeaus', () => {
   const seen = { h: new Set(), v: new Set() };
   for (let i = 0; i < 400; i++) {
     w.step();
-    const a = w.at(6, 5).state.item; if (a) seen.h.add(a);
-    const b = w.at(5, 6).state.item; if (b) seen.v.add(b);
+    for (const a of onBelt(w.at(6, 5))) seen.h.add(a);
+    for (const b of onBelt(w.at(5, 6))) seen.v.add(b);
   }
   assert.deepStrictEqual([...seen.h], ['eisenerz']);
   assert.deepStrictEqual([...seen.v], ['kupfererz']);
@@ -282,36 +289,65 @@ test('Kreuzung: von Hand gesetzt, beide Richtungen laufen geradeaus', () => {
   assert.ok([...w2.buildings.values()].some((b) => b.kind === 'kreuzung'));
 });
 
-test('Zusammenführer: drei Bänder werden gerecht auf eines zusammengeführt', () => {
+test('Automatische Zusammenführung: treffen Bänder aufeinander, kommen alle gerecht dran', () => {
   const tiles = '.'.repeat(400).split('');
   tiles[5 * 20 + 1] = 'e'; // Eisen links (hinten)
-  tiles[1 * 20 + 5] = 'k'; // Kupfer oben (links vom Zusammenführer)
+  tiles[1 * 20 + 5] = 'k'; // Kupfer oben (links)
   tiles[9 * 20 + 5] = 't'; // Stein unten (rechts)
   const w = new World({ w: 20, h: 20, seed: 1, tiles: tiles.join('') });
   w.money = 1000;
-  assert.ok(w.unlocked().includes('zusammenfuehrer') && w.unlocked().includes('verteiler'));
+  assert.ok(!DEFS.BUILDINGS.zusammenfuehrer, 'Zusammenführer ist kein eigenes Bauteil mehr');
+  w.research.done.push('baender1', 'logistik'); // schnellere Bänder, damit sich alles staut
   w.place('bohrer', 1, 5, 0); for (let x = 2; x <= 4; x++) w.place('band', x, 5, 0);
   w.place('bohrer', 5, 1, 1); for (let y = 2; y <= 4; y++) w.place('band', 5, y, 1);
   w.place('bohrer', 5, 9, 3); for (let y = 6; y <= 8; y++) w.place('band', 5, y, 3);
-  // erst ein Band legen, dann den Zusammenführer direkt darauf setzen
-  w.place('band', 5, 5, 0);
-  const m0 = w.money;
-  assert.strictEqual(w.place('zusammenfuehrer', 5, 5, 0), null);
-  assert.strictEqual(w.at(5, 5).kind, 'zusammenfuehrer');
-  assert.strictEqual(w.money, m0 - (DEFS.COSTS.zusammenfuehrer - DEFS.COSTS.band));
+  w.place('band', 5, 5, 0); // gewöhnliches Band, an dem drei Bänder zusammentreffen
   w.place('band', 6, 5, 0);
   const count = {};
-  for (let i = 0; i < 1500; i++) {
+  for (let i = 0; i < 3000; i++) {
     w.step();
     // Band dahinter als Senke: abnehmen, was ankommt
     const b = w.at(6, 5);
-    if (b.state.item) { count[b.state.item] = (count[b.state.item] || 0) + 1; b.state.item = null; }
+    for (const it of b.state.list || []) count[it.item] = (count[it.item] || 0) + 1;
+    b.state.list = [];
   }
   const n = ['eisenerz', 'kupfererz', 'stein'].map((it) => count[it] || 0);
-  assert.ok(Math.min(...n) > 10 && Math.max(...n) - Math.min(...n) <= 2, 'gerecht verteilt: ' + JSON.stringify(count));
-  // Speichern und Laden behält den Zusammenführer
-  const w2 = World.fromJSON(JSON.parse(JSON.stringify(w.toJSON())));
-  assert.ok([...w2.buildings.values()].some((b) => b.kind === 'zusammenfuehrer'));
+  assert.ok(Math.min(...n) > 10, 'alle drei kommen durch: ' + JSON.stringify(count));
+  // Stau: der Ausgang ist langsamer als die drei Zuläufe zusammen, trotzdem kommt jeder gleich oft dran
+  const w2 = new World({ w: 20, h: 20, seed: 1, tiles: '.'.repeat(400) });
+  w2.money = 1000;
+  for (let x = 2; x <= 4; x++) w2.place('band', x, 5, 0);
+  for (let y = 2; y <= 4; y++) w2.place('band', 5, y, 1);
+  for (let y = 6; y <= 8; y++) w2.place('band', 5, y, 3);
+  w2.place('band', 5, 5, 0); w2.place('band', 6, 5, 0);
+  const c2 = {};
+  for (let i = 0; i < 3000; i++) {
+    for (const [x, y, it, fx, fy] of [[2, 5, 'eisenerz', 1, 5], [5, 2, 'kupfererz', 5, 1], [5, 8, 'stein', 5, 9]]) {
+      const b = w2.at(x, y);
+      if (w2.accepts(b, it, fx, fy)) w2.insert(b, it, b.dir);
+    }
+    w2.step();
+    if (i % 12 === 0) { const b = w2.at(6, 5); for (const it of b.state.list || []) c2[it.item] = (c2[it.item] || 0) + 1; b.state.list = []; }
+  }
+  const n2 = ['eisenerz', 'kupfererz', 'stein'].map((it) => c2[it] || 0);
+  assert.ok(Math.min(...n2) > 100 && Math.max(...n2) - Math.min(...n2) <= 3, 'gerecht im Stau: ' + JSON.stringify(c2));
+});
+
+test('Bänder tragen mehrere Gegenstände dicht hintereinander', () => {
+  const w = makeWorld();
+  for (let x = 3; x <= 6; x++) w.place('band', x, 5, 0); // Ende bei x=6 blockiert (nichts davor)
+  for (let i = 0; i < 200; i++) {
+    const b = w.at(3, 5);
+    if (w.accepts(b, 'stein', 2, 5)) w.insert(b, 'stein', 0);
+    w.step();
+  }
+  const total = [3, 4, 5, 6].reduce((n, x) => n + onBelt(w.at(x, 5)).length, 0);
+  assert.ok(total >= 11, 'mindestens 3 pro Feld, gefunden: ' + total);
+  // Abstand wird eingehalten
+  for (let x = 3; x <= 6; x++) {
+    const ps = w.at(x, 5).state.list.map((it) => it.p);
+    for (let i = 1; i < ps.length; i++) assert.ok(ps[i - 1] - ps[i] >= DEFS.BELT_GAP - 1e-9);
+  }
 });
 
 test('Verteiler direkt auf ein Band setzen teilt in drei Richtungen', () => {
@@ -326,7 +362,7 @@ test('Verteiler direkt auf ein Band setzen teilt in drei Richtungen', () => {
   for (let i = 0; i < 3; i++) {
     w.insert(v, 'bretter');
     w.step();
-    for (const [x, y] of [[6, 5], [5, 6], [5, 4]]) if (w.at(x, y).state.item) seen.add(x + ',' + y);
+    for (const [x, y] of [[6, 5], [5, 6], [5, 4]]) if (onBelt(w.at(x, y)).length) seen.add(x + ',' + y);
   }
   assert.strictEqual(seen.size, 3);
 });
