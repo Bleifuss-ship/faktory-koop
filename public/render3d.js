@@ -642,6 +642,7 @@ function create(canvas) {
       for (const sd of ins) { const t = m(G.beltHalfIn, beltMat); t.rotation.y = SIDE_ROT[sd] + Math.PI; t.position.y = BELT_TOP + (h += 0.002); g.add(t); }
       for (const sd of outs) { const t = m(G.beltHalfOut, beltMat); t.rotation.y = SIDE_ROT[sd]; t.position.y = BELT_TOP + (h += 0.002); g.add(t); }
     }
+    if (split) return g; // Verteiler: nur Bandstücke, sieht aus wie ein normales Band
     const body = m(PG.housing, partMat[kind]); body.position.y = 0.25; g.add(body);
     const cap = m(PG.cap, partCap[kind]); cap.position.y = 0.41; g.add(cap);
     // dunkle Öffnungen, wo Bänder hinein- oder herauslaufen
@@ -660,7 +661,27 @@ function create(canvas) {
     return g;
   }
 
-  function makeBuilding(kind, ghost) {
+  // Unterführung: halbes Band und ein Tor aus Stein; Eingang (Band hinten) oder Ausgang (Band vorne)
+  const TG = {
+    gate: new RoundedBoxGeometry(0.5, 0.34, 0.94, 3, 0.08),
+    mouth: new RoundedBoxGeometry(0.06, 0.22, 0.7, 2, 0.03),
+    railHalf: new THREE.CylinderGeometry(0.05, 0.05, 0.5, 12).rotateZ(Math.PI / 2),
+  };
+  const gateMat = mat(0xa7afbd, { map: concreteTex });
+  const gateAlone = mat(0xc9a0a0, { map: concreteTex });
+  function makeTunnel(g, ghost, opt) {
+    const m = (geo, material) => new THREE.Mesh(geo, ghost || material);
+    const out = opt.role === 'out';
+    const f = m(BG.crossFrame, M.beltBase); f.position.y = 0.05; g.add(f);
+    const t = m(out ? G.beltHalfOut : G.beltHalfIn, beltMat); t.position.y = BELT_TOP; g.add(t);
+    for (const z of [-0.45, 0.45]) { const r = m(TG.railHalf, M.rail); r.position.set(out ? 0.25 : -0.25, 0.12, z); g.add(r); }
+    const gate = m(TG.gate, opt.alone ? gateAlone : gateMat); gate.position.set(out ? -0.25 : 0.25, 0.17, 0); g.add(gate);
+    const mo = m(TG.mouth, BM.darkMetal); mo.position.set(out ? 0.005 : -0.005, 0.2, 0); g.add(mo);
+    const ar = m(PG.flatArrow, M.white); ar.position.set(out ? -0.27 : 0.23, 0.345, 0); g.add(ar);
+    return g;
+  }
+
+  function makeBuilding(kind, ghost, opt = {}) {
     const g = new THREE.Group();
     g.userData.kind = kind;
     // Im Vorschau-Modus bekommen alle Teile dasselbe halbdurchsichtige Material
@@ -675,6 +696,7 @@ function create(canvas) {
       return g;
     }
     if (kind === 'verteiler' || kind === 'zusammenfuehrer' || kind === 'kreuzung') return makeBeltPart(g, kind, ghost);
+    if (kind === 'unterfuehrung') return makeTunnel(g, ghost, opt);
     if (kind === 'zentrale') {
       const base = m(new RoundedBoxGeometry(2.7, 0.5, 2.7, 3, 0.25), M.cream);
       base.position.y = 0.25;
@@ -1129,7 +1151,6 @@ function create(canvas) {
 
   // --- Zustand der Szene ---
   const groups = new Map(); // Gebäude-ID -> Group
-  const junctions = new Map(); // Band-ID -> Kasten der automatischen Zusammenführung
   let builtVersion = -1;
   let ghost = null;
   let ghostKey = '';
@@ -1157,7 +1178,7 @@ function create(canvas) {
     buildDeposits(world);
   }
 
-  let curveFn = null, joinFn = null, sidesFn = null, mergeFn = null;
+  let curveFn = null, joinFn = null, sidesFn = null, tunnelFn = null;
   function syncBuildings(world) {
     if (world.version === builtVersion) return;
     builtVersion = world.version;
@@ -1165,29 +1186,9 @@ function create(canvas) {
     // Maschinen und Zentrale als eigene Objekte
     for (const [id, g] of groups) {
       const b = world.buildings.get(id);
-      if (!b || b.dir !== g.userData.dir) { scene.remove(g); groups.delete(id); }
+      if (!b || b.dir !== g.userData.dir || (b.kind === 'unterfuehrung' && tunnelFn && JSON.stringify(tunnelFn(b)) !== g.userData.role)) { scene.remove(g); groups.delete(id); }
     }
-    // automatische Zusammenführungen: Kasten über geraden Bändern mit mehreren Zuläufen
-    const wantJ = new Map();
-    if (mergeFn) for (const b of world.buildings.values()) {
-      if (b.kind !== 'band') continue;
-      const ins = mergeFn(b);
-      if (ins) wantJ.set(b.id, { b, sig: b.dir + ':' + ins.join(','), ins });
-    }
-    for (const [id, g] of junctions) {
-      const w = wantJ.get(id);
-      if (!w || w.sig !== g.userData.sig) { scene.remove(g); junctions.delete(id); }
-    }
-    for (const [id, w] of wantJ) {
-      if (junctions.has(id)) continue;
-      const g = makeBeltPart(new THREE.Group(), 'zusammenfuehrer', null, { boxOnly: true, ins: w.ins });
-      g.traverse((o) => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
-      g.position.set(w.b.x + 0.5, 0, w.b.y + 0.5);
-      g.rotation.y = -w.b.dir * Math.PI / 2;
-      g.userData.sig = w.sig;
-      scene.add(g);
-      junctions.set(id, g);
-    }
+
     const m4 = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3(0, 1, 0);
@@ -1231,7 +1232,9 @@ function create(canvas) {
         continue;
       }
       if (groups.has(b.id)) continue;
-      const g = makeBuilding(b.kind);
+      const opt = b.kind === 'unterfuehrung' && tunnelFn ? tunnelFn(b) : {};
+      const g = makeBuilding(b.kind, null, opt);
+      if (b.kind === 'unterfuehrung') g.userData.role = JSON.stringify(opt);
       if (b.kind === 'zentrale') g.position.set(b.x, 0, b.y);
       else { g.position.set(b.x + 0.5, 0, b.y + 0.5); g.rotation.y = -b.dir * Math.PI / 2; }
       g.userData.dir = b.dir;
@@ -1379,7 +1382,7 @@ function create(canvas) {
     const dtSec = Math.min(0.1, (now - lastT) / 1000);
     lastT = now;
     const t = now / 1000;
-    curveFn = s.beltCurve; joinFn = s.beltJoin; sidesFn = s.beltSides; mergeFn = s.beltMerge;
+    curveFn = s.beltCurve; joinFn = s.beltJoin; sidesFn = s.beltSides; tunnelFn = s.tunnelRole;
     syncBuildings(s.world);
     view.az += (view.azTarget - view.az) * Math.min(1, dtSec * 8);
     updateCamera();
@@ -1450,14 +1453,11 @@ function create(canvas) {
     for (const p of itemPools.values()) p.n = 0;
     const dt = Math.min(1, (now - s.lastTickAt) / 100);
     const items = s.items;
-    for (let i = 0; i < items.length; i += 4) {
+    const stride = s.itemStride || 4;
+    for (let i = 0; i < items.length; i += stride) {
       const pool = itemPool(items[i + 2], s.defs);
       if (!pool || pool.n >= 3000) continue;
-      const x = items[i];
-      const y = items[i + 1];
-      const b = s.world.grid.get(x + ',' + y);
-      const p = Math.min(1, items[i + 3] + (items[i + 3] < 1 ? s.beltSpeed * dt : 0));
-      const [wx, wy, ang] = b && s.beltPoint ? s.beltPoint(b, p) : [x + 0.5, y + 0.5, 0];
+      const [wx, wy, ang] = s.itemPoint(i, dt);
       q.setFromAxisAngle(up, -ang);
       v.set(wx, BELT_TOP + pool.lift * 0.8, wy);
       sc.set(0.8, 0.8, 0.8); // etwas kleiner, weil jetzt drei Gegenstände auf ein Feld passen

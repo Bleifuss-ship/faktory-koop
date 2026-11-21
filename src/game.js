@@ -157,6 +157,7 @@ const BUILDINGS = {
   bohrer: { name: 'Bohrer', key: '2', desc: 'Auf ein Vorkommen stellen (auch Wald). Gibt Rohstoffe nach vorne aus.' },
   saege: { name: 'Sägewerk', key: '3', desc: 'Holz → Bretter.' },
   schmelze: { name: 'Schmelzofen', key: '4', desc: 'Erz, Stein, Sand → Barren, Ziegel, Glas.' },
+  unterfuehrung: { name: 'Unterführung', key: 'u', desc: 'Zwei Unterführungen in gleicher Richtung (bis zu 4 Felder dazwischen) bilden einen Tunnel: Gegenstände laufen unter allem hindurch.' },
   verteiler: { name: 'Verteiler', key: '5', desc: 'Teilt ein Band auf: Gegenstände gehen abwechselnd nach vorne, rechts und links. Auch direkt auf ein Band setzbar.' },
   presse: { name: 'Presse', key: '6', desc: 'Barren → Zahnrad, Draht, Blech.' },
   brecher: { name: 'Steinbrecher', key: '7', desc: 'Zermahlt Stein, Bauxit und Schwefel.' },
@@ -171,8 +172,9 @@ const BUILDINGS = {
 // Techbaum: Jede Technik braucht ihre Vorgänger und kostet Gegenstände aus dem Lager der Zentrale.
 // col/row bestimmen nur die Position in der Anzeige.
 const TECHS = [
-  { id: 'grundlagen', name: 'Grundlagen', req: [], cost: {}, unlock: ['band', 'kreuzung', 'verteiler', 'bohrer', 'saege', 'schmelze'], col: 0, row: 3, text: 'Bänder, Kreuzungen, Verteiler, Bohrer, Sägewerk und Schmelzofen.' },
-  { id: 'logistik', name: 'Logistik', req: ['grundlagen'], cost: { bretter: 20, ziegel: 10 }, bonus: { band: 1.25 }, col: 1, row: 1, text: 'Bänder laufen 25 % schneller.' },
+  { id: 'grundlagen', name: 'Grundlagen', req: [], cost: {}, unlock: ['band', 'bohrer', 'saege', 'schmelze'], col: 0, row: 3, text: 'Einfache Förderbänder, Bohrer, Sägewerk und Schmelzofen.' },
+  { id: 'logistik', name: 'Logistik', req: ['grundlagen'], cost: { bretter: 20, ziegel: 10 }, unlock: ['kreuzung', 'verteiler'], bonus: { band: 1.25 }, col: 1, row: 1, text: 'Schaltet Kreuzung und Verteiler frei, Bänder laufen 25 % schneller.' },
+  { id: 'tunnelbau', name: 'Tunnelbau', req: ['logistik'], cost: { bretter: 30, eisenbarren: 20 }, unlock: ['unterfuehrung'], col: 2, row: 1, text: 'Schaltet die Unterführung frei: Bänder laufen unter anderen Bändern und Gebäuden hindurch.' },
   { id: 'metallbau', name: 'Metallbau', req: ['grundlagen'], cost: { eisenbarren: 20, bretter: 10 }, unlock: ['presse'], col: 1, row: 3, text: 'Schaltet die Presse frei.' },
   { id: 'steinbruch', name: 'Steinbruch', req: ['grundlagen'], cost: { ziegel: 20, eisenbarren: 10 }, unlock: ['brecher'], col: 1, row: 5, text: 'Schaltet den Steinbrecher frei (Kies, Tonerde, Schwefelpulver).' },
   { id: 'baender1', name: 'Schnelle Bänder', req: ['logistik'], cost: { eisenbarren: 30, ziegel: 20 }, bonus: { band: 1.5 }, col: 2, row: 0, text: 'Bänder laufen 50 % schneller.' },
@@ -202,10 +204,10 @@ const TECHS = [
 // --- Geld ---
 // Baukosten in Talern. Abreißen gibt den vollen Preis zurück.
 // Bandteile: dürfen ins Wasser und direkt auf ein Band gesetzt werden
-const BELT_PARTS = ['kreuzung', 'verteiler'];
+const BELT_PARTS = ['kreuzung', 'verteiler', 'unterfuehrung'];
 
 const COSTS = {
-  band: 2, kreuzung: 4, verteiler: 20, bohrer: 25, saege: 40, schmelze: 60, presse: 120, brecher: 150,
+  band: 2, kreuzung: 4, verteiler: 20, unterfuehrung: 15, bohrer: 25, saege: 40, schmelze: 60, presse: 120, brecher: 150,
   hochofen: 300, werkbank: 400, chemiewerk: 800, fabrikator: 1500, zentrifuge: 2500, montagehalle: 5000,
 };
 const START_MONEY = 300;
@@ -233,6 +235,8 @@ const BASE_BELT_SPEED = 0.125; // Zellen pro Tick
 const BELT_GAP = 1 / 3;
 // Seitlich einmündende Bänder legen ihre Gegenstände in der Bandmitte ab
 const SIDE_ENTRY = 0.5;
+// Größter Abstand zwischen zwei Unterführungen (4 Felder dazwischen)
+const TUNNEL_RANGE = 5;
 const BASE_DRILL_TIME = 25; // Ticks pro Rohstoff
 const HUB_SIZE = 3;
 const MAP_SIZE = 160;
@@ -510,7 +514,7 @@ class World {
           if (it) k.state[existing.dir % 2 ? 'v' : 'h'] = { item: it, p: first.p || 0, d: existing.dir };
         } else {
           const k = this._add({ kind, x, y, dir });
-          if (it) k.state.item = it;
+          if (it && kind === 'verteiler') k.state.item = it;
         }
         return null;
       }
@@ -553,6 +557,12 @@ class World {
       return !b.state[d % 2 ? 'v' : 'h'];
     }
     if (b.kind === 'band') return !fromFront && this.beltAccepts(b, fx, fy);
+    if (b.kind === 'unterfuehrung') {
+      // nur der Eingang eines verbundenen Paars nimmt an, und nur von hinten
+      const [bx, by] = DIRS[(b.dir + 2) % 4];
+      if (b.x + bx !== fx || b.y + by !== fy || !this.tunnelPartner(b)) return false;
+      return (b.state.list || []).every((it) => it.p >= BELT_GAP - 1e-9);
+    }
     if (b.kind === 'verteiler') {
       // Nicht von dem Feld annehmen, in das das Gebäude zeigt (frontal)
       return !b.state.item && !fromFront;
@@ -568,13 +578,58 @@ class World {
     });
   }
 
+  // --- Unterführungen: Paare in gleicher Richtung, abwechselnd Eingang und Ausgang ---
+  tunnelNeighbor(t, sign) {
+    const [dx, dy] = DIRS[t.dir];
+    for (let k = 1; k <= TUNNEL_RANGE; k++) {
+      const n = this.at(t.x + dx * k * sign, t.y + dy * k * sign);
+      if (n && n.kind === 'unterfuehrung' && n.dir === t.dir) return { n, k };
+    }
+    return null;
+  }
+  tunnelIsEntrance(t, depth = 0) {
+    const prev = this.tunnelNeighbor(t, -1);
+    if (!prev || depth > 50) return true;
+    return !this.tunnelIsEntrance(prev.n, depth + 1);
+  }
+  // Ausgang eines Eingangs mit Abstand k, sonst null
+  tunnelPartner(t) {
+    if (!this.tunnelIsEntrance(t)) return null;
+    return this.tunnelNeighbor(t, 1);
+  }
+
+  // Liefert Gebäude n (Nachbar) Gegenstände in Feld b?
+  feedsInto(n, b) {
+    if (!n || n === b || n.kind === 'zentrale') return false;
+    if (n.kind === 'kreuzung') return true;
+    const [fx, fy] = DIRS[n.dir];
+    if (n.kind === 'verteiler') {
+      const [bx, by] = DIRS[(n.dir + 2) % 4];
+      return !(n.x + bx === b.x && n.y + by === b.y);
+    }
+    if (n.kind === 'unterfuehrung' && this.tunnelIsEntrance(n)) return false;
+    return n.x + fx === b.x && n.y + fy === b.y;
+  }
+  // Kurve: nicht von hinten, aber genau von einer Seite beliefert (wie im Client gezeichnet)
+  isCurveBelt(b) {
+    const nb = (o) => { const [dx, dy] = DIRS[(b.dir + o) % 4]; return this.feedsInto(this.at(b.x + dx, b.y + dy), b); };
+    if (nb(2)) return false;
+    return nb(1) !== nb(3);
+  }
+  // Einlaufstelle für Richtung d: von hinten am Anfang; von der Seite in der Mitte (mit seitlichem
+  // Versatz s, der zur Mitte gleitet), bei einer Kurve am Anfang der Kurve
+  beltEntry(b, d) {
+    if (d === b.dir || this.isCurveBelt(b)) return { p: 0, s: 0 };
+    return { p: SIDE_ENTRY, s: d === (b.dir + 3) % 4 ? 0.5 : -0.5 };
+  }
+
   // Band: Platz an der Einlaufstelle frei? Treffen mehrere Bänder aufeinander, wird automatisch
   // zusammengeführt: Die Eingänge kommen abwechselnd dran, keiner wird ausgehungert.
   beltAccepts(b, fx, fy) {
     const s = b.state;
     const d = DIRS.findIndex(([x, y]) => x === b.x - fx && y === b.y - fy);
     if (d < 0) return false;
-    const p0 = d === b.dir ? 0 : SIDE_ENTRY;
+    const p0 = this.beltEntry(b, d).p;
     const list = s.list || [];
     const free = list.every((it) => Math.abs(it.p - p0) >= BELT_GAP - 1e-9);
     // Warteschlange der Eingänge: wer am längsten wartet, kommt zuerst dran
@@ -596,15 +651,16 @@ class World {
     if (b.kind === 'kreuzung') { b.state[d % 2 ? 'v' : 'h'] = { item, p: 0, d }; return; }
     if (b.kind === 'band') {
       const s = b.state;
-      const p = d === b.dir ? 0 : SIDE_ENTRY;
+      const e = this.beltEntry(b, d);
       const list = (s.list = s.list || []);
-      list.push({ item, p });
+      list.push(e.s ? { item, p: e.p, s: e.s } : { item, p: e.p });
       list.sort((a, c) => c.p - a.p); // vorderster zuerst
       s.lastIn = d;
       if (s.since) { delete s.since[d]; delete s.seen[d]; }
       return;
     }
     if (b.kind === 'verteiler') { b.state.item = item; return; }
+    if (b.kind === 'unterfuehrung') { (b.state.list = b.state.list || []).push({ item, p: 0 }); b.state.list.sort((a, c) => c.p - a.p); return; }
     const buf = (b.state.buf = b.state.buf || {});
     buf[item] = (buf[item] || 0) + 1;
   }
@@ -644,9 +700,39 @@ class World {
           let limit = 1;
           for (let i = 0; i < list.length; i++) {
             const it = list[i];
-            it.p = Math.max(it.p, Math.min(limit, it.p + beltSpeed));
-            if (i === 0 && it.p >= 1) {
+            const p0 = it.p;
+            if (it.s) {
+              // von der Seite eingelaufen: erst zur Bandmitte gleiten
+              const st = Math.min(Math.abs(it.s), beltSpeed);
+              it.s -= Math.sign(it.s) * st;
+              if (Math.abs(it.s) < 1e-6) delete it.s;
+              it.m = 1;
+            } else {
+              it.p = Math.max(it.p, Math.min(limit, it.p + beltSpeed));
+              it.m = it.p > p0 ? 1 : 0;
+            }
+            if (i === 0 && it.p >= 1 && !it.s) {
               if (this.push(b, it.item)) { list.shift(); i--; limit = 1; continue; }
+            }
+            limit = it.p - BELT_GAP;
+          }
+          break;
+        }
+        case 'unterfuehrung': {
+          // Eingang: Gegenstände laufen bis zum Ende des Ausgangs, dort weiter nach vorne
+          const list = s.list;
+          if (!list || !list.length) break;
+          const pt = this.tunnelPartner(b);
+          if (!pt) break;
+          const end = pt.k + 1;
+          let limit = end;
+          for (let i = 0; i < list.length; i++) {
+            const it = list[i];
+            const p0 = it.p;
+            it.p = Math.max(it.p, Math.min(limit, it.p + beltSpeed));
+            it.m = it.p > p0 ? 1 : 0;
+            if (i === 0 && it.p >= end) {
+              if (this.push(pt.n, it.item)) { list.shift(); i--; limit = end; continue; }
             }
             limit = it.p - BELT_GAP;
           }
@@ -721,7 +807,17 @@ class World {
     for (const b of this.buildings.values()) {
       if (b.kind === 'kreuzung') {
         for (const slot of ['h', 'v']) { const it = b.state[slot]; if (it) cross.push(b.x, b.y, it.item, Math.round(it.p * 100) / 100, it.d); }
-      } else if (b.kind === 'band') { for (const it of b.state.list || []) items.push(b.x, b.y, it.item, Math.round(it.p * 100) / 100); }
+      } else if (b.kind === 'band') {
+        for (const it of b.state.list || []) items.push(b.x, b.y, it.item, Math.round(it.p * 100) / 100, Math.round((it.s || 0) * 100) / 100, it.m ? 1 : 0);
+      } else if (b.kind === 'unterfuehrung') {
+        // sichtbar nur vor dem Eingangstor und hinter dem Ausgangstor, dazwischen unter der Erde
+        const pt = (b.state.list || []).length ? this.tunnelPartner(b) : null;
+        for (const it of b.state.list || []) {
+          const m = it.m ? 1 : 0;
+          if (it.p < 0.5) items.push(b.x, b.y, it.item, Math.round(it.p * 100) / 100, 0, m);
+          else if (pt && it.p > pt.k + 0.5) items.push(pt.n.x, pt.n.y, it.item, Math.round((it.p - pt.k) * 100) / 100, 0, m);
+        }
+      }
       else if (b.state.recipe || b.state.out) busy.push(b.id, b.state.recipe ? b.state.recipe.out : b.state.out);
     }
     return { items, busy, cross };
@@ -784,9 +880,9 @@ class World {
       if (!BUILDINGS[kind] || w.at(b.x + ox, b.y + oy)) continue;
       const slot = (q) => (q && ITEMS[q.item] && q.d >= 0 && q.d < 4 ? { item: q.item, p: q.p || 0, d: q.d } : null);
       const state = { buf, out: ok(st.out), next: st.next || 0, h: slot(st.h), v: slot(st.v) };
-      if (kind === 'band') {
+      if (kind === 'band' || kind === 'unterfuehrung') {
         // neue Bänder: Liste mit mehreren Gegenständen; alte Spielstände hatten ein einzelnes item
-        const list = Array.isArray(st.list) ? st.list.filter((it) => it && ITEMS[it.item]).map((it) => ({ item: it.item, p: Math.min(1, Math.max(0, +it.p || 0)) })) : [];
+        const list = Array.isArray(st.list) ? st.list.filter((it) => it && ITEMS[it.item]).map((it) => ({ item: it.item, p: Math.min(kind === 'band' ? 1 : TUNNEL_RANGE + 1, Math.max(0, +it.p || 0)) })) : [];
         if (!list.length && ok(st.item)) list.push({ item: st.item, p: st.p || 0 });
         state.list = list.sort((a, c) => c.p - a.p);
       } else state.item = ok(st.item);
@@ -796,6 +892,6 @@ class World {
   }
 }
 
-const DEFS = { BELT_GAP, BELT_PARTS, COSTS, VALUES, DIRS, DEPOSITS, WATER, ITEMS, BUILDINGS, RECIPES, TECHS, MACHINES };
+const DEFS = { BELT_GAP, TUNNEL_RANGE, BELT_PARTS, COSTS, VALUES, DIRS, DEPOSITS, WATER, ITEMS, BUILDINGS, RECIPES, TECHS, MACHINES };
 
 module.exports = { World, DEFS, generateMap, TECHS };

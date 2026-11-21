@@ -251,6 +251,7 @@ test('Kreuzung: von Hand gesetzt, beide Richtungen laufen geradeaus', () => {
   tiles[1 * 20 + 5] = 'k'; // Kupfer oben
   const w = new World({ w: 20, h: 20, seed: 1, tiles: tiles.join('') });
   w.money = 1000;
+  w.research.done.push('logistik'); // Kreuzung und Verteiler müssen erforscht werden
   // waagerechte Linie y=5 von x=2..8 nach rechts, Ende in Sammelband nach unten
   w.place('bohrer', 1, 5, 0);
   for (let x = 2; x <= 8; x++) w.place('band', x, 5, 0);
@@ -353,6 +354,7 @@ test('Bänder tragen mehrere Gegenstände dicht hintereinander', () => {
 test('Verteiler direkt auf ein Band setzen teilt in drei Richtungen', () => {
   const w = makeWorld();
   w.money = 1000;
+  w.research.done.push('logistik');
   w.place('band', 5, 5, 0);
   assert.strictEqual(w.place('verteiler', 5, 5, 0), null);
   const v = w.at(5, 5);
@@ -365,4 +367,64 @@ test('Verteiler direkt auf ein Band setzen teilt in drei Richtungen', () => {
     for (const [x, y] of [[6, 5], [5, 6], [5, 4]]) if (onBelt(w.at(x, y)).length) seen.add(x + ',' + y);
   }
   assert.strictEqual(seen.size, 3);
+});
+
+test('Bandteile müssen erforscht werden', () => {
+  const w = makeWorld();
+  w.money = 1000;
+  assert.ok(w.unlocked().includes('band'));
+  for (const k of ['kreuzung', 'verteiler', 'unterfuehrung']) assert.strictEqual(w.place(k, 5, 5, 0), 'Noch nicht erforscht');
+  w.research.done.push('logistik');
+  assert.strictEqual(w.place('verteiler', 5, 5, 0), null);
+  assert.strictEqual(w.place('unterfuehrung', 6, 6, 0), 'Noch nicht erforscht');
+  w.research.done.push('tunnelbau');
+  assert.strictEqual(w.place('unterfuehrung', 6, 6, 0), null);
+});
+
+test('Unterführung: Gegenstände laufen unter einem querenden Band hindurch', () => {
+  const tiles = '.'.repeat(400).split('');
+  tiles[5 * 20 + 1] = 'e';
+  const w = new World({ w: 20, h: 20, seed: 1, tiles: tiles.join('') });
+  w.money = 1000;
+  w.research.done.push('logistik', 'tunnelbau');
+  w.place('bohrer', 1, 5, 0);
+  w.place('band', 2, 5, 0);
+  w.place('unterfuehrung', 3, 5, 0); // Eingang
+  for (let y = 2; y <= 8; y++) w.place('band', 5, y, 1); // querendes Band dazwischen
+  w.place('band', 4, 5, 3); w.place('band', 6, 5, 1); // weitere Hindernisse
+  w.place('unterfuehrung', 7, 5, 0); // Ausgang, 3 Felder dazwischen
+  w.place('band', 8, 5, 0);
+  assert.ok(w.tunnelIsEntrance(w.at(3, 5)) && !w.tunnelIsEntrance(w.at(7, 5)));
+  assert.strictEqual(w.tunnelPartner(w.at(3, 5)).k, 4);
+  const seen = new Set();
+  for (let i = 0; i < 400; i++) {
+    w.step();
+    for (const it of w.at(8, 5).state.list || []) seen.add(it.item);
+    for (const it of w.at(5, 5).state.list || []) assert.notStrictEqual(it.item, 'eisenerz', 'nichts landet auf dem querenden Band');
+  }
+  assert.deepStrictEqual([...seen], ['eisenerz']);
+  // zu weit auseinander: kein Tunnel
+  const w2 = new World({ w: 20, h: 20, seed: 1, tiles: '.'.repeat(400) });
+  w2.money = 1000; w2.research.done.push('logistik', 'tunnelbau');
+  w2.place('unterfuehrung', 2, 2, 0); w2.place('unterfuehrung', 8, 2, 0);
+  assert.strictEqual(w2.tunnelPartner(w2.at(2, 2)), null);
+  // Speichern/Laden behält Gegenstände im Tunnel
+  const w3 = World.fromJSON(JSON.parse(JSON.stringify(w.toJSON())));
+  assert.ok([...w3.buildings.values()].some((b) => b.kind === 'unterfuehrung'));
+});
+
+test('Von der Seite einlaufende Gegenstände gleiten zur Mitte, Kurven starten am Anfang', () => {
+  const w = makeWorld();
+  w.place('band', 5, 5, 0); w.place('band', 4, 5, 0); w.place('band', 5, 4, 1); // T-Stück: hinten und links
+  const b = w.at(5, 5);
+  w.insert(b, 'stein', 1); // von oben (links in Laufrichtung)
+  assert.strictEqual(b.state.list[0].p, 0.5);
+  assert.strictEqual(b.state.list[0].s, -0.5);
+  for (let i = 0; i < 4; i++) w.step();
+  assert.ok(!b.state.list[0].s);
+  // Kurve: nur von der Seite beliefert -> Start am Anfang der Kurve ohne Versatz
+  const c = new World({ w: 20, h: 20, seed: 1, tiles: '.'.repeat(400) });
+  c.place('band', 5, 5, 0); c.place('band', 5, 4, 1);
+  c.insert(c.at(5, 5), 'stein', 1);
+  assert.deepStrictEqual(c.at(5, 5).state.list[0], { item: 'stein', p: 0 });
 });
