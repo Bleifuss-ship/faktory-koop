@@ -43,7 +43,14 @@ function startServer(opts = {}) {
     const url = new URL(req.url, 'http://x');
     if (url.pathname === '/info') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-      res.end(JSON.stringify({ game: 'fabrik-koop', version: VERSION, addresses: lanAddresses(server.address().port) }));
+      res.end(JSON.stringify({ game: 'fabrik-koop', version: VERSION, addresses: lanAddresses(server.address().port), local: isLocal(req), hostWorld: hostRoom() }));
+      return;
+    }
+    if (url.pathname === '/worlds') {
+      // Gespeicherte Welten nur für den eigenen Rechner auflisten
+      if (!isLocal(req)) { res.writeHead(403); res.end('[]'); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(listWorlds()));
       return;
     }
     const file = path.normalize(path.join(PUBLIC_DIR, url.pathname === '/' ? 'index.html' : url.pathname));
@@ -58,6 +65,42 @@ function startServer(opts = {}) {
 
   // --- Räume ---
   const rooms = new Map();
+  let lastHostRoom = null;
+
+  // Spieler auf demselben Rechner wie der Server sind der Host
+  function isLocal(req) {
+    const a = (req.socket && req.socket.remoteAddress) || '';
+    return a === '::1' || a.startsWith('127.') || a.startsWith('::ffff:127.');
+  }
+
+  function hasLocal(room) {
+    return !!room && [...room.players.values()].some((p) => p.local);
+  }
+
+  // Die Welt, in der der Host gerade spielt. Wer mit Code beitritt, landet dort.
+  function hostRoom() {
+    if (hasLocal(rooms.get(lastHostRoom))) return lastHostRoom;
+    for (const r of rooms.values()) if (hasLocal(r)) return r.name;
+    return null;
+  }
+
+  function listWorlds() {
+    const out = new Map();
+    try {
+      for (const f of fs.readdirSync(SAVE_DIR)) {
+        if (!f.endsWith('.json')) continue;
+        const st = fs.statSync(path.join(SAVE_DIR, f));
+        out.set(f.slice(0, -5), { name: f.slice(0, -5), saved: st.mtimeMs, players: 0 });
+      }
+    } catch {}
+    for (const r of rooms.values()) {
+      const e = out.get(r.name) || { name: r.name, saved: Date.now() };
+      e.players = r.players.size;
+      if (r.players.size) e.saved = Date.now();
+      out.set(r.name, e);
+    }
+    return [...out.values()].sort((a, b) => b.saved - a.saved);
+  }
 
   function roomFile(name) { return path.join(SAVE_DIR, name + '.json'); }
 
@@ -96,14 +139,15 @@ function startServer(opts = {}) {
   }
 
   function playerList(room) {
-    return [...room.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color }));
+    return [...room.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color, host: p.local }));
   }
 
   // --- WebSocket ---
   const wss = new WebSocketServer({ server });
   let nextPlayerId = 1;
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws, req) => {
+    const local = isLocal(req);
     let room = null;
     let player = null;
 
@@ -113,17 +157,25 @@ function startServer(opts = {}) {
       if (!msg || typeof msg !== 'object') return;
 
       if (msg.t === 'join' && !room) {
-        room = getRoom(cleanRoomName(msg.room));
+        let name = msg.room;
+        if (msg.code) {
+          // Beitritt per Code: in die Welt des Hosts
+          name = hostRoom();
+          if (!name) { send(ws, { t: 'fail', text: 'Der Host ist gerade in keiner Welt. Er muss zuerst eine Welt starten.' }); return; }
+        }
+        room = getRoom(cleanRoomName(name));
+        if (local) lastHostRoom = room.name;
         const used = new Set([...room.players.values()].map((p) => p.color));
         player = {
           id: nextPlayerId++,
           name: String(msg.name || 'Gast').slice(0, 16) || 'Gast',
           color: COLORS.find((c) => !used.has(c)) || COLORS[room.players.size % COLORS.length],
           ws,
+          local,
           cursor: null,
         };
         room.players.set(player.id, player);
-        send(ws, { t: 'init', you: player.id, room: room.name, version: VERSION, defs: DEFS, world: room.world.fullState(), players: playerList(room) });
+        send(ws, { t: 'init', you: player.id, room: room.name, version: VERSION, defs: DEFS, world: room.world.fullState(), players: playerList(room), host: local, share: local ? lanAddresses(server.address().port) : [] });
         broadcast(room, { t: 'players', players: playerList(room) });
         return;
       }

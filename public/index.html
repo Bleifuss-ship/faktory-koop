@@ -40,33 +40,124 @@
     <div id="toolbar"></div>
   </div>
 
-  <div id="join">
-    <form id="join-form">
-      <h1>Fabrik-Koop</h1>
-      <p>Baut gemeinsam eine Fabrik: Rohstoffe abbauen, verarbeiten und zur Zentrale bringen.</p>
-      <label>Dein Name <input id="join-name" maxlength="16" required autocomplete="nickname"></label>
-      <label>Welt <input id="join-room" maxlength="24" placeholder="start"></label>
-      <p class="hint">Alle mit demselben Weltnamen spielen zusammen.</p>
-      <label>Server <input id="join-server" maxlength="80" placeholder="leer = dieser Rechner" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url"></label>
-      <p class="hint" id="server-hint">Zum Mitspielen bei jemand anderem dessen Adresse eintragen, z. B. 192.168.1.20:3000</p>
-      <p class="lan" id="lan-info"></p>
-      <button type="submit">Los geht's</button>
-      <details>
-        <summary>Steuerung</summary>
-        <ul>
-          <li><b>Bauen:</b> Gebäude unten wählen (Taste 1–9), klicken oder ziehen (Bänder folgen der Zugrichtung)</li>
-          <li><b>Techbaum:</b> Taste T oder Knopf oben links</li>
+  <button id="menu-btn" type="button" class="hidden" title="Menü (Esc)" aria-label="Menü">☰</button>
+  <button id="code-chip" type="button" class="hidden" title="Mitspieler einladen"></button>
+
+  <!-- Hauptmenü -->
+  <div id="menu">
+    <div class="menu-scene" aria-hidden="true">
+      <div class="m-cloud c1"></div><div class="m-cloud c2"></div><div class="m-cloud c3"></div>
+      <div class="m-hill h1"></div><div class="m-hill h2"></div>
+      <div class="m-factory"><i></i><i></i><i></i></div>
+      <div class="m-belt"><div class="m-crates"></div></div>
+    </div>
+    <div class="menu-card">
+      <header class="menu-head">
+        <h1>Fabrik-Koop</h1>
+        <span id="menu-version"></span>
+      </header>
+
+      <section data-page="home">
+        <label class="m-name">Dein Name <input id="m-name" maxlength="16" autocomplete="nickname" placeholder="z. B. Sandra"></label>
+        <button id="m-continue" class="m-big primary hidden" type="button"><b>▶ Weiterspielen</b><small></small></button>
+        <button class="m-big" type="button" data-go="worlds" data-local><b>🏭 Spielen</b><small>Eigene Welt auf diesem Gerät starten oder laden</small></button>
+        <button class="m-big" type="button" data-go="host" data-local><b>👥 Mitspieler einladen</b><small>Welt starten und Code an Freunde geben</small></button>
+        <button class="m-big" type="button" data-go="code"><b>🔑 Mit Code beitreten</b><small>Code von einem Freund eingeben</small></button>
+        <button id="m-here" class="m-big hidden" type="button"><b>🔗 Spiel auf diesem Rechner beitreten</b><small></small></button>
+        <div class="m-row">
+          <button type="button" data-go="settings">⚙️ Einstellungen</button>
+          <button type="button" data-go="help">❔ Steuerung</button>
+        </div>
+        <button id="m-quit" class="m-quit hidden" type="button">Beenden</button>
+      </section>
+
+      <section data-page="worlds" class="hidden">
+        <h2 id="w-title">🏭 Welt wählen</h2>
+        <p class="m-sub" id="w-sub">Deine Welten auf diesem Gerät.</p>
+        <div id="w-list" class="w-list"></div>
+        <form id="w-new" class="m-inline">
+          <input id="w-new-name" maxlength="24" placeholder="Name der neuen Welt" autocapitalize="off" spellcheck="false">
+          <button type="submit">＋ Neue Welt</button>
+        </form>
+        <p class="m-err" id="w-err"></p>
+        <button type="button" class="m-back" data-go="home">← Zurück</button>
+      </section>
+
+      <section data-page="code" class="hidden">
+        <h2>🔑 Mit Code beitreten</h2>
+        <p class="m-sub">Der Host sieht seinen Code im Spiel auf dem 👥-Knopf oder im Menü (☰).</p>
+        <form id="c-form">
+          <input id="c-code" class="code-input" maxlength="16" placeholder="CODE" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false">
+          <p class="m-err" id="c-err"></p>
+          <button type="submit" class="m-big primary"><b>Beitreten</b></button>
+        </form>
+        <details class="m-adv" id="m-adv">
+          <summary>Ohne Code: Adresse eingeben</summary>
+          <form id="a-form">
+            <label>Server <input id="a-server" maxlength="80" placeholder="z. B. 192.168.1.20:3000" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url"></label>
+            <label>Welt <input id="a-room" maxlength="24" placeholder="leer = Welt des Hosts" autocapitalize="off" spellcheck="false"></label>
+            <button type="submit">Verbinden</button>
+          </form>
+        </details>
+        <button type="button" class="m-back" data-go="home">← Zurück</button>
+      </section>
+
+      <section data-page="settings" class="hidden">
+        <h2>⚙️ Einstellungen</h2>
+        <div class="m-set">
+          <span>Grafik</span>
+          <div class="m-seg" id="s-gfx">
+            <button type="button" data-v="3d">3D</button>
+            <button type="button" data-v="2d">2D (schneller)</button>
+          </div>
+        </div>
+        <div class="m-set">
+          <span>Übersichtskarte</span>
+          <div class="m-seg" id="s-mini">
+            <button type="button" data-v="on">An</button>
+            <button type="button" data-v="off">Aus</button>
+          </div>
+        </div>
+        <p class="m-sub" id="s-note"></p>
+        <button type="button" class="m-back" data-go="home">← Zurück</button>
+      </section>
+
+      <section data-page="help" class="hidden">
+        <h2>❔ Steuerung</h2>
+        <ul class="m-help">
+          <li><b>Bauen:</b> Gebäude unten wählen (Tasten 1–9, 0, K, U, V, B, N), klicken oder ziehen. Bänder folgen der Zugrichtung.</li>
           <li><b>Drehen:</b> Taste R oder ⟳-Knopf</li>
           <li><b>Abreißen:</b> Taste X oder 🗑-Werkzeug</li>
-          <li><b>Kamera:</b> Mittlere Maustaste/Leertaste + ziehen, WASD, Mausrad zoomt, Q/E oder 🧭 dreht</li>
+          <li><b>Techbaum:</b> Taste T oder Knopf oben links</li>
+          <li><b>Kamera:</b> Mittlere Maustaste oder Leertaste + ziehen, WASD, Mausrad zoomt, Q/E oder 🧭 dreht</li>
+          <li><b>Menü:</b> Esc oder ☰</li>
           <li><b>Handy:</b> ✋ zum Verschieben, zwei Finger zum Zoomen und Drehen</li>
         </ul>
-      </details>
-    </form>
+        <button type="button" class="m-back" data-go="home">← Zurück</button>
+      </section>
+    </div>
+  </div>
+
+  <!-- Menü im Spiel -->
+  <div id="pause" class="hidden">
+    <div class="menu-card">
+      <header class="menu-head"><h1>Menü</h1><span id="p-world"></span></header>
+      <div id="p-share" class="p-share hidden">
+        <div class="p-share-label">Code für Mitspieler</div>
+        <div id="p-code" class="p-code"></div>
+        <p>Freunde wählen im Hauptmenü „Mit Code beitreten“ und geben ihn ein. Ihr müsst im selben WLAN sein.</p>
+        <p id="p-alt" class="p-alt"></p>
+      </div>
+      <p id="p-guest" class="m-sub hidden"></p>
+      <button id="p-resume" class="m-big primary" type="button"><b>▶ Weiterspielen</b></button>
+      <button id="p-help" class="m-big" type="button"><b>❔ Steuerung</b></button>
+      <button id="p-leave" class="m-big" type="button"><b>🏠 Zum Hauptmenü</b><small>Die Welt wird gespeichert</small></button>
+    </div>
   </div>
 
   <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
   <script type="module" src="render3d.js"></script>
+  <script src="joincode.js"></script>
   <script type="module" src="client.js"></script>
 </body>
 </html>

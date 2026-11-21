@@ -7,7 +7,9 @@
   // 3D-Darstellung, wenn WebGL geht. Mit ?2d in der Adresse oder ohne WebGL gibt es die flache Ansicht.
   let r3d = null;
   try {
-    if (window.Render3D && !/[?&]2d\b/.test(location.search)) r3d = window.Render3D.create(canvas);
+    let gfx = null;
+    try { gfx = localStorage.getItem('fk-gfx'); } catch {}
+    if (window.Render3D && !/[?&]2d\b/.test(location.search) && gfx !== '2d') r3d = window.Render3D.create(canvas);
   } catch (err) {
     console.warn('3D nicht verfügbar, nutze 2D', err);
   }
@@ -52,20 +54,27 @@
   }
 
   let everConnected = false;
-  function connect(name, room, server) {
-    ws = new WebSocket(wsUrl(server));
-    ws.onopen = () => { everConnected = true; ws.send(JSON.stringify({ t: 'join', name, room })); };
+  let leaving = false;
+  let session = null; // { name, room, server, code, wantShare }
+  function connect(opts) {
+    session = opts;
+    ws = new WebSocket(wsUrl(opts.server));
+    ws.onopen = () => {
+      everConnected = true;
+      ws.send(JSON.stringify(opts.room ? { t: 'join', name: opts.name, room: opts.room } : { t: 'join', name: opts.name, code: true }));
+    };
     ws.onmessage = (e) => handle(JSON.parse(e.data));
     ws.onclose = () => {
-      if (!everConnected) {
-        // Erste Verbindung fehlgeschlagen: zurück zum Startbildschirm
-        $('join').classList.remove('hidden');
-        $('server-hint').textContent = `Keine Verbindung zu ${server || 'diesem Rechner'}. Stimmt die Adresse, und läuft dort das Spiel?`;
-        $('server-hint').style.color = '#ff8a7a';
+      if (leaving) return;
+      if (!me) {
+        // Noch nie in der Welt angekommen: zurück ins Menü mit Hinweis
+        menuError(opts, opts.code
+          ? `Unter dem Code ${opts.code} wurde kein Spiel gefunden. Hat der Host das Spiel offen, und seid ihr im selben WLAN?`
+          : `Keine Verbindung zu ${opts.server || 'diesem Rechner'}. Stimmt die Adresse, und läuft dort das Spiel?`);
         return;
       }
       toast('Verbindung verloren, verbinde neu …');
-      setTimeout(() => connect(name, room, server), 2000);
+      setTimeout(() => { if (!leaving) connect(opts); }, 2000);
     };
   }
 
@@ -75,15 +84,21 @@
 
   function handle(m) {
     switch (m.t) {
+      case 'fail':
+        // Server lehnt den Beitritt ab (z. B. Host in keiner Welt)
+        leaving = true;
+        ws.close();
+        menuError(session, m.text);
+        break;
       case 'init':
         defs = m.defs;
         me = m.you;
+        enterGame(m);
         loadWorld(m.world);
         players = m.players;
         renderPlayers();
         buildToolbar();
         if (!cam.x) { cam.x = world.w / 2; cam.y = world.h / 2; }
-        history.replaceState(null, '', '?welt=' + encodeURIComponent(m.room));
         document.title = 'Fabrik-Koop ' + (m.version || '');
         toast(`Fabrik-Koop ${m.version || ''} · Welt „${m.room}“ · Karte ${world.w} × ${world.h}`, 4500);
         break;
@@ -1602,10 +1617,18 @@
     if (k === ' ') { spaceDown = true; e.preventDefault(); }
     if (k === 'r') rotate();
     if (k === 't') { if ($('techtree').classList.contains('hidden')) openTechTree(); else $('techtree').classList.add('hidden'); }
-    if (k === 'escape') $('techtree').classList.add('hidden');
-    if (k === 'h' || k === 'escape') setTool('hand');
+    if (k === 'escape') {
+      // Esc schließt zuerst den Techbaum, dann das Werkzeug, dann öffnet es das Menü
+      if (!$('techtree').classList.contains('hidden')) $('techtree').classList.add('hidden');
+      else if (!$('pause').classList.contains('hidden')) closePause();
+      else if (tool !== 'hand') setTool('hand');
+      else if (me) openPause();
+      return;
+    }
+    if (!$('pause').classList.contains('hidden') || !$('menu').classList.contains('hidden')) return;
+    if (k === 'h') setTool('hand');
     if (k === 'x' || k === 'delete') setTool('delete');
-    if (k === 'm') mini.el.classList.toggle('off');
+    if (k === 'm') { mini.el.classList.toggle('off'); store('fk-mini', mini.el.classList.contains('off') ? 'off' : 'on'); }
     if (defs) for (const [id, b] of Object.entries(defs.BUILDINGS)) if (b.key === k) setTool(id);
   });
   addEventListener('keyup', (e) => {
@@ -1631,35 +1654,257 @@
     if (keys.has('d') || keys.has('arrowright')) cam.x += sp;
   }
 
-  // ---------- Start ----------
+  // ---------- Menü ----------
   const params = new URLSearchParams(location.search);
-  $('join-room').value = params.get('welt') || '';
-  try {
-    $('join-name').value = localStorage.getItem('fk-name') || '';
-    $('join-server').value = params.get('server') || localStorage.getItem('fk-server') || '';
-  } catch {}
-  if (isApp) {
-    $('join-server').placeholder = 'z. B. 192.168.1.20:3000';
-    $('join-server').required = true;
-    $('server-hint').textContent = 'Adresse des Rechners, auf dem Fabrik-Koop läuft. Sie steht dort auf dem Startbildschirm.';
-  } else {
-    // Adressen anzeigen, unter denen andere diesem Spiel beitreten können
-    fetch('/info').then((r) => r.json()).then((info) => {
-      if (info.version) $('join').querySelector('h1').dataset.version = 'Version ' + info.version;
-      if (info.addresses && info.addresses.length) {
-        $('lan-info').innerHTML = 'Mitspieler im selben Netzwerk verbinden sich mit: ' + info.addresses.map((a) => `<b>${escapeHtml(a)}</b>`).join(', ');
-      }
-    }).catch(() => {});
+  const JC = window.JoinCode;
+  const isDesktop = /Electron/.test(navigator.userAgent);
+  let info = null; // Antwort von /info des eigenen Servers
+  let shareCodes = [];
+
+  function load(k) { try { return localStorage.getItem(k); } catch { return null; } }
+  function store(k, v) { try { localStorage.setItem(k, v); } catch {} }
+
+  if (load('fk-mini') === 'off') mini.el.classList.add('off');
+
+  function showPage(id) {
+    for (const sec of document.querySelectorAll('#menu section')) sec.classList.toggle('hidden', sec.dataset.page !== id);
+    if (id === 'worlds' || id === 'host') {
+      const host = id === 'host';
+      $('menu').querySelector('[data-page="worlds"]').classList.remove('hidden');
+      $('menu').querySelector('[data-page="worlds"]').dataset.host = host ? '1' : '';
+      $('w-title').textContent = host ? '👥 Welt für Mitspieler wählen' : '🏭 Welt wählen';
+      $('w-sub').textContent = host
+        ? 'Starte eine Welt. Danach bekommst du einen Code, den deine Freunde eingeben.'
+        : 'Deine Welten auf diesem Gerät.';
+      $('w-err').textContent = '';
+      loadWorlds();
+    }
+    if (id === 'code') setTimeout(() => $('c-code').focus(), 30);
+    if (id === 'settings') renderSettings();
   }
-  $('join-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const name = $('join-name').value.trim() || 'Gast';
-    const server = $('join-server').value.trim();
-    try { localStorage.setItem('fk-name', name); localStorage.setItem('fk-server', server); } catch {}
-    $('join').classList.add('hidden');
+
+  function playerName() {
+    const n = $('m-name').value.trim();
+    if (n) store('fk-name', n);
+    return n || 'Gast';
+  }
+
+  function ago(ms) {
+    const s = (Date.now() - ms) / 1000;
+    if (s < 90) return 'gerade eben';
+    if (s < 3600) return `vor ${Math.round(s / 60)} Min.`;
+    if (s < 86400) return `vor ${Math.round(s / 3600)} Std.`;
+    const d = Math.round(s / 86400);
+    return d === 1 ? 'gestern' : `vor ${d} Tagen`;
+  }
+
+  function loadWorlds() {
+    const list = $('w-list');
+    list.innerHTML = '<p class="m-sub">Lade …</p>';
+    fetch('/worlds').then((r) => r.json()).then((worlds) => {
+      if (!worlds.length) { list.innerHTML = '<p class="m-sub">Noch keine Welt. Leg unten eine neue an.</p>'; return; }
+      list.innerHTML = '';
+      for (const w of worlds) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'w-item';
+        b.innerHTML = `<b>${escapeHtml(w.name)}</b><small>${w.players ? `🟢 ${w.players} spielen gerade` : 'gespeichert ' + ago(w.saved)}</small><span>▶</span>`;
+        b.onclick = () => startLocal(w.name, hostMode());
+        list.appendChild(b);
+      }
+    }).catch(() => { list.innerHTML = '<p class="m-sub">Welten konnten nicht geladen werden.</p>'; });
+  }
+
+  function cleanName(n) {
+    return String(n || '').toLowerCase().replace(/[äöüß]/g, (c) => ({ ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss' }[c])).replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
+  }
+
+  function hideMenu() {
+    $('menu').classList.add('hidden');
+  }
+
+  function hostMode() { return $('menu').querySelector('[data-page="worlds"]').dataset.host === '1'; }
+
+  function startLocal(room, wantShare) {
+    store('fk-last', JSON.stringify({ room }));
+    hideMenu();
+    connect({ name: playerName(), room, server: '', wantShare });
+  }
+
+  function startCode(code) {
+    const addr = JC.decode(code);
+    if (!addr) { $('c-err').textContent = 'Diesen Code gibt es nicht. Bitte noch einmal genau abtippen.'; return; }
+    const pretty = JC.pretty(JC.encode(addr));
+    store('fk-last', JSON.stringify({ code: pretty }));
+    hideMenu();
+    connect({ name: playerName(), server: addr, code: pretty });
+  }
+
+  // Zurück ins Menü, wenn der Beitritt nicht geklappt hat
+  function menuError(opts, text) {
+    $('menu').classList.remove('hidden');
+    if (opts.code) { showPage('code'); $('c-code').value = opts.code; $('c-err').textContent = text; }
+    else if (opts.server) { showPage('code'); $('m-adv').open = true; $('c-err').textContent = text; }
+    else { showPage('home'); toast(text, 5000); }
+    leaving = false;
     everConnected = false;
-    connect(name, $('join-room').value.trim() || 'start', server);
+  }
+
+  function renderSettings() {
+    const gfx = load('fk-gfx') === '2d' || !r3d ? '2d' : '3d';
+    for (const b of $('s-gfx').children) b.classList.toggle('on', b.dataset.v === gfx);
+    const mm = mini.el.classList.contains('off') ? 'off' : 'on';
+    for (const b of $('s-mini').children) b.classList.toggle('on', b.dataset.v === mm);
+    $('s-note').textContent = window.Render3D || r3d ? '' : '3D ist auf diesem Gerät nicht verfügbar.';
+  }
+
+  $('s-gfx').addEventListener('click', (e) => {
+    const v = e.target.dataset && e.target.dataset.v;
+    if (!v || v === (r3d ? '3d' : '2d')) return;
+    store('fk-gfx', v);
+    playerName();
+    // Die Darstellung wird beim Start gewählt, also neu laden und wieder in die Einstellungen
+    location.href = location.pathname + '?seite=settings';
   });
+  $('s-mini').addEventListener('click', (e) => {
+    const v = e.target.dataset && e.target.dataset.v;
+    if (!v) return;
+    mini.el.classList.toggle('off', v === 'off');
+    store('fk-mini', v);
+    renderSettings();
+  });
+
+  for (const b of document.querySelectorAll('#menu [data-go]')) b.addEventListener('click', () => showPage(b.dataset.go));
+
+  $('w-new').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const raw = $('w-new-name').value.trim();
+    const name = cleanName(raw);
+    if (!name) { $('w-err').textContent = 'Bitte einen Namen eingeben (Buchstaben und Zahlen).'; return; }
+    const exists = [...$('w-list').querySelectorAll('.w-item b')].some((b) => b.textContent === name);
+    if (exists) { $('w-err').textContent = `Die Welt „${name}“ gibt es schon. Tippe sie oben an, um sie zu laden.`; return; }
+    startLocal(name, hostMode());
+  });
+
+  $('c-code').addEventListener('input', () => {
+    const el = $('c-code');
+    el.value = el.value.toUpperCase().replace(/[^0-9A-Z-]/g, '');
+    $('c-err').textContent = '';
+  });
+  $('c-form').addEventListener('submit', (e) => { e.preventDefault(); startCode($('c-code').value); });
+  $('a-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const server = $('a-server').value.trim();
+    if (!server) { $('c-err').textContent = 'Bitte die Adresse des Hosts eintragen.'; return; }
+    const room = cleanName($('a-room').value);
+    store('fk-server', server);
+    hideMenu();
+    connect({ name: playerName(), server, room: room || null });
+  });
+
+  $('m-continue').addEventListener('click', () => {
+    let last = null;
+    try { last = JSON.parse(load('fk-last')); } catch {}
+    if (!last) return;
+    if (last.code) startCode(last.code);
+    else startLocal(last.room);
+  });
+  $('m-here').addEventListener('click', () => { hideMenu(); connect({ name: playerName(), server: '' }); });
+  $('m-quit').addEventListener('click', () => window.close());
+
+  // ---------- Menü im Spiel ----------
+  function enterGame(m) {
+    $('menu').classList.add('hidden');
+    $('menu-btn').classList.remove('hidden');
+    $('p-world').textContent = `Welt „${m.room}“`;
+    shareCodes = m.host ? JC.sortAddresses(m.share).map((a) => JC.pretty(JC.encode(a))).filter(Boolean) : [];
+    const chip = $('code-chip');
+    if (shareCodes.length) {
+      chip.innerHTML = `👥 Code <b>${shareCodes[0]}</b>`;
+      chip.classList.remove('hidden');
+      $('p-code').textContent = shareCodes[0];
+      $('p-code').classList.toggle('long', shareCodes[0].length > 5);
+      $('p-alt').textContent = shareCodes.length > 1 ? `Klappt es nicht? Andere Netzwerke dieses Rechners: ${shareCodes.slice(1).join(', ')}` : '';
+      $('p-share').classList.remove('hidden');
+      $('p-guest').classList.add('hidden');
+    } else {
+      chip.classList.add('hidden');
+      $('p-share').classList.add('hidden');
+      $('p-guest').textContent = session && session.code ? `Du spielst mit Code ${session.code} bei einem Freund mit.` : '';
+      $('p-guest').classList.toggle('hidden', !$('p-guest').textContent);
+    }
+    if (m.host && session && session.wantShare) openPause();
+  }
+
+  function openPause() {
+    $('pause').classList.remove('hidden');
+    $('pause').querySelector('.m-help')?.remove();
+  }
+  function closePause() { $('pause').classList.add('hidden'); }
+
+  $('menu-btn').addEventListener('click', () => ($('pause').classList.contains('hidden') ? openPause() : closePause()));
+  $('code-chip').addEventListener('click', openPause);
+  $('p-resume').addEventListener('click', closePause);
+  $('pause').addEventListener('click', (e) => { if (e.target === $('pause')) closePause(); });
+  $('p-help').addEventListener('click', () => {
+    const card = $('pause').querySelector('.menu-card');
+    const old = card.querySelector('.m-help');
+    if (old) { old.remove(); return; }
+    const list = $('menu').querySelector('.m-help').cloneNode(true);
+    $('p-help').after(list);
+  });
+  $('p-leave').addEventListener('click', () => {
+    leaving = true;
+    if (ws) ws.close();
+    // Neu laden, damit das Hauptmenü mit sauberem Zustand startet (der Server speichert die Welt)
+    setTimeout(() => { location.href = location.pathname; }, 150);
+  });
+
+  // ---------- Start ----------
+  $('m-name').value = load('fk-name') || '';
+  $('a-server').value = params.get('server') || load('fk-server') || '';
+  $('m-quit').classList.toggle('hidden', !isDesktop);
+
+  function setLocalButtons(on) {
+    for (const b of document.querySelectorAll('#menu [data-local]')) b.classList.toggle('hidden', !on);
+  }
+
+  function showContinue() {
+    let last = null;
+    try { last = JSON.parse(load('fk-last')); } catch {}
+    const btn = $('m-continue');
+    if (!last || (last.room && !info?.local)) { btn.classList.add('hidden'); return; }
+    btn.querySelector('small').textContent = last.code ? `Bei Code ${last.code} mitspielen` : `Welt „${last.room}“`;
+    btn.classList.remove('hidden');
+  }
+
+  setLocalButtons(false);
+  if (!isApp) {
+    fetch('/info').then((r) => r.json()).then((i) => {
+      info = i;
+      if (i.version) $('menu-version').textContent = 'Version ' + i.version;
+      if (i.local) {
+        setLocalButtons(true);
+      } else {
+        // Im Browser auf einem anderen Gerät, das die Seite des Hosts geöffnet hat
+        $('m-here').classList.remove('hidden');
+        $('m-here').querySelector('small').textContent = i.hostWorld ? `Welt „${i.hostWorld}“ auf ${location.host}` : location.host;
+      }
+      showContinue();
+    }).catch(() => showContinue());
+  } else {
+    $('menu-version').textContent = 'Handy-App';
+    showContinue();
+  }
+
+  // Alte Links mit ?welt=name direkt starten
+  const linkRoom = cleanName(params.get('welt'));
+  const startPage = params.get('seite');
+  if (params.get('code')) { showPage('code'); $('c-code').value = params.get('code').toUpperCase(); }
+  else if (startPage) showPage(startPage);
+  else showPage('home');
+  if (linkRoom && load('fk-name')) startLocal(linkRoom);
+  if (startPage) history.replaceState(null, '', location.pathname);
 
   requestAnimationFrame(frame);
 })();

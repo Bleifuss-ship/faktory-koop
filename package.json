@@ -1,6 +1,6 @@
 {
   "name": "faktory-koop",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "description": "Kooperatives Fabrikbau-Spiel im Browser",
   "main": "desktop/main.js",
   "scripts": {
