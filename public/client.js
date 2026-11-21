@@ -184,7 +184,7 @@
   // ---------- Übersichtskarte ----------
   // Ein Pixel pro Feld; Gebäude und Kameraposition werden laufend darübergezeichnet.
   const mini = { el: $('minimap'), base: null, drawn: 0 };
-  const MINI_COL = { '.': '#9bd16f', '~': '#4aa6d6', h: '#4f9a4a', t: '#b4b8c0', e: '#b0705e', k: '#f0943c', c: '#3a3d46', w: '#9a8cd0', u: '#7ad94a', q: '#f0e0a8', b: '#c0603a', s: '#f2dc3a', g: '#e8c040' };
+  const MINI_COL = { '.': '#4f8357', '~': '#4aa6d6', h: '#2f5e36', t: '#b4b8c0', e: '#b0705e', k: '#f0943c', c: '#3a3d46', w: '#9a8cd0', u: '#7ad94a', q: '#f0e0a8', b: '#c0603a', s: '#f2dc3a', g: '#e8c040' };
   function renderMinimapBase() {
     const b = document.createElement('canvas');
     b.width = world.w; b.height = world.h;
@@ -209,7 +209,7 @@
     const g = mini.el.getContext('2d');
     g.drawImage(mini.base, 0, 0);
     for (const b of world.buildings.values()) {
-      g.fillStyle = b.kind === 'band' || b.kind === 'kreuzung' ? '#596173' : b.kind === 'zentrale' ? '#9a7cf2' : (KIND_COLORS[b.kind] || ['#fff'])[0];
+      g.fillStyle = ['band', 'kreuzung', 'verteiler', 'unterfuehrung'].includes(b.kind) ? '#1f2426' : b.kind === 'zentrale' ? '#9a7cf2' : (KIND_COLORS[b.kind] || ['#fff'])[0];
       g.fillRect(b.x, b.y, b.size, b.size);
     }
     // Sichtbereich: die vier Bildschirmecken auf den Boden projiziert
@@ -304,13 +304,13 @@
     return c;
   }
   // Gerades Band, in das von der Seite ein anderes Band einmündet (T-Stück)
+  const BELT_KINDS = new Set(['band', 'kreuzung', 'verteiler', 'unterfuehrung']);
   function beltSides(b) {
     const side = (o) => {
       const [ox, oy] = DIRS[(b.dir + o) % 4];
       const n = world.grid.get((b.x + ox) + ',' + (b.y + oy));
-      if (!n || n.kind !== 'band') return false;
-      const [fx, fy] = DIRS[n.dir];
-      return n.x + fx === b.x && n.y + fy === b.y;
+      // Neben jedem anderen Bandteil fällt die Schiene weg: Bänder verschmelzen zu einer dunklen Fläche
+      return !!n && BELT_KINDS.has(n.kind);
     };
     return { openR: side(1), openL: side(3) };
   }
@@ -397,8 +397,7 @@
     for (let y = 0; y < world.h; y++) {
       for (let x = 0; x < world.w; x++) {
         const n = (Math.sin(x * 0.35) + Math.cos(y * 0.29) + Math.sin((x + y) * 0.17)) / 6 + hash(x, y) * 0.08;
-        const l = 62 + n * 10;
-        c.fillStyle = `hsl(${96 + n * 12}, 52%, ${l}%)`;
+        c.fillStyle = `hsl(${128 + n * 6}, 25%, ${42 + n * 5}%)`;
         c.fillRect(x * S, y * S, S, S);
       }
     }
@@ -432,46 +431,19 @@
         }
       }
     }
-    // Grasbüschel und Blumen
-    for (let y = 0; y < world.h; y++) {
-      for (let x = 0; x < world.w; x++) {
-        if (world.tiles[y * world.w + x] !== '.') continue;
-        const r = hash(x, y, 1);
-        const px = x * S + 6 + hash(x, y, 2) * (S - 12);
-        const py = y * S + 6 + hash(x, y, 3) * (S - 12);
-        if (r < 0.28) {
-          c.strokeStyle = 'rgba(70,130,50,0.45)';
-          c.lineWidth = 1.6;
-          c.lineCap = 'round';
-          c.beginPath();
-          c.moveTo(px - 3, py + 3); c.lineTo(px - 4, py - 2);
-          c.moveTo(px, py + 3); c.lineTo(px, py - 4);
-          c.moveTo(px + 3, py + 3); c.lineTo(px + 4, py - 2);
-          c.stroke();
-        } else if (r < 0.34) {
-          c.fillStyle = ['#ffffff', '#ffe066', '#ffb3c7'][Math.floor(hash(x, y, 4) * 3)];
-          for (let i = 0; i < 5; i++) {
-            const a = (i / 5) * Math.PI * 2;
-            c.beginPath(); c.arc(px + Math.cos(a) * 2.2, py + Math.sin(a) * 2.2, 1.6, 0, Math.PI * 2); c.fill();
-          }
-          c.fillStyle = '#f5a524';
-          c.beginPath(); c.arc(px, py, 1.4, 0, Math.PI * 2); c.fill();
-        }
-      }
-    }
     // Vorkommen: helle Bodenflecken mit Steinen, Kristallen oder Sandhügeln
     const DEP = {
-      h: { soil: '#7fb85a', main: '#4f9a4a', light: '#7cc46a', dark: '#2f6a34' },
-      t: { soil: '#c4c8b8', main: '#a4aab4', light: '#d4d8e0', dark: '#7a808c' },
-      e: { soil: '#c4ae9e', main: '#9a5a4e', light: '#c48a7e', dark: '#6a3a32' },
-      k: { soil: '#c8cf9a', main: '#f0943c', light: '#6fd8c0', dark: '#c0682a' },
-      c: { soil: '#9a9a8a', main: '#3a3d46', light: '#6a6e7a', dark: '#22242a' },
-      w: { soil: '#b4b0c8', main: '#8a7fb0', light: '#c8c0ee', dark: '#5f5488' },
-      u: { soil: '#a8b890', main: '#7ad94a', light: '#d4ff9a', dark: '#3f8a2a' },
-      q: { soil: '#f0e0a8', main: '#e6cf88', light: '#fff4cc', dark: '#c8ae66' },
-      b: { soil: '#d8a890', main: '#c0603a', light: '#e89070', dark: '#8a3a22' },
-      s: { soil: '#e8e0a0', main: '#f2dc3a', light: '#fff6a0', dark: '#b8a020' },
-      g: { soil: '#c8c0a8', main: '#e8c040', light: '#fff0a0', dark: '#a88420' },
+      h: { soil: '#4d7c4f', main: '#4f9a4a', light: '#7cc46a', dark: '#2f6a34' },
+      t: { soil: '#7f8a80', main: '#a4aab4', light: '#d4d8e0', dark: '#7a808c' },
+      e: { soil: '#80705e', main: '#9a5a4e', light: '#c48a7e', dark: '#6a3a32' },
+      k: { soil: '#87916a', main: '#f0943c', light: '#6fd8c0', dark: '#c0682a' },
+      c: { soil: '#5a5f58', main: '#3a3d46', light: '#6a6e7a', dark: '#22242a' },
+      w: { soil: '#76708e', main: '#8a7fb0', light: '#c8c0ee', dark: '#5f5488' },
+      u: { soil: '#6f8a5a', main: '#7ad94a', light: '#d4ff9a', dark: '#3f8a2a' },
+      q: { soil: '#a8a070', main: '#e6cf88', light: '#fff4cc', dark: '#c8ae66' },
+      b: { soil: '#8e6a5a', main: '#c0603a', light: '#e89070', dark: '#8a3a22' },
+      s: { soil: '#a09a62', main: '#f2dc3a', light: '#fff6a0', dark: '#b8a020' },
+      g: { soil: '#8a856e', main: '#e8c040', light: '#fff0a0', dark: '#a88420' },
     };
     for (let y = 0; y < world.h; y++) {
       for (let x = 0; x < world.w; x++) {
@@ -597,11 +569,16 @@
   // Gebäudekörper: helles Gehäuse mit sichtbarer Unterkante, darauf farbiges Dach
   function body(c, x, y, w, h, r, s, roof) {
     const lip = s * 0.08;
-    c.fillStyle = '#d9d4c8';
+    // violetter Sockel-Rahmen mit heller Innenkante
+    c.fillStyle = '#3f3a6e';
     roundRect(c, x, y + lip, w, h - lip, r);
     c.fill();
-    c.fillStyle = '#fbf8f1';
+    c.fillStyle = '#5f58a0';
     roundRect(c, x, y, w, h - lip, r);
+    c.fill();
+    const e = s * 0.05;
+    c.fillStyle = '#efe6d2';
+    roundRect(c, x + e, y + e, w - e * 2, h - lip - e * 2, Math.max(2, r - e));
     c.fill();
     if (roof) {
       const m = s * 0.1;
@@ -618,22 +595,27 @@
   function beltStrip(c, x0, y0, w, h, s, t, noArrows) {
     c.save();
     c.beginPath(); c.rect(x0, y0, w, h); c.clip();
-    c.fillStyle = '#4a5262';
+    c.fillStyle = '#2d3233';
     c.fillRect(x0, y0, w, h);
-    const step = s / 2;
-    const off = ((t * beltSpeed * 10) % 1) * step;
-    c.fillStyle = '#414858';
-    for (let px = -s - step + (off % (s / 8)); px < s; px += s / 8) c.fillRect(px, y0, Math.max(1, s * 0.025), h);
+    // ein türkiser Bogenpfeil pro Feld, läuft mit dem Band mit
     if (!noArrows) {
-      c.strokeStyle = '#e4e9f2';
-      c.lineWidth = Math.max(1.5, s * 0.08);
-      c.lineCap = 'round'; c.lineJoin = 'round';
-      for (let i = -3; i <= 3; i++) {
-        const px = i * step + off - s * 0.05;
-        c.beginPath(); c.moveTo(px - s * 0.06, -s * 0.13); c.lineTo(px + s * 0.07, 0); c.lineTo(px - s * 0.06, s * 0.13); c.stroke();
+      const off = ((t * beltSpeed * 10) % 1) * s;
+      c.strokeStyle = '#4fb0c0';
+      c.lineWidth = Math.max(1.5, s * 0.075);
+      c.lineCap = 'round';
+      for (let i = -2; i <= 2; i++) {
+        const px = i * s + off - s * 0.12;
+        c.beginPath(); c.arc(px, 0, s * 0.17, -0.95, 0.95); c.stroke();
       }
     }
     c.restore();
+  }
+
+  // weißer quadratischer Rahmen auf Bandteilen (Mitte = Ursprung)
+  function whiteFrame2d(c, s, size) {
+    c.strokeStyle = '#d2d7d8';
+    c.lineWidth = Math.max(1.5, s * 0.06);
+    c.strokeRect(-size * s / 2, -size * s / 2, size * s, size * s);
   }
 
   // Zeichnet ein Gebäude in Pixelkoordinaten (x,y = linke obere Ecke, s = Zellgröße)
@@ -648,14 +630,13 @@
       const col = KIND_COLORS[kind][0];
       c.translate(x + s / 2, y + s / 2);
       c.rotate(d * Math.PI / 2);
-      c.fillStyle = '#353b47';
+      c.fillStyle = '#2d3233';
       if (!opts.boxOnly) c.fillRect(-s / 2, -s / 2, s, s);
       const stub = (a, out) => { c.save(); c.rotate(a); beltStrip(c, out ? 0 : -s / 2, -s * 0.4, s / 2, s * 0.8, s, t); c.restore(); };
       if (kind === 'kreuzung') {
         beltStrip(c, -s / 2, -s * 0.4, s, s * 0.8, s, t);
         c.save(); c.rotate(Math.PI / 2); beltStrip(c, -s / 2, -s * 0.4, s, s * 0.8, s, t); c.restore();
-        c.fillStyle = col;
-        for (const [ox, oy] of [[-0.5, -0.5], [0.3, -0.5], [-0.5, 0.3], [0.3, 0.3]]) { roundRect(c, ox * s, oy * s, s * 0.2, s * 0.2, s * 0.05); c.fill(); }
+        whiteFrame2d(c, s, 0.62);
       } else {
         const split = kind === 'verteiler';
         const ANG = { back: Math.PI, right: Math.PI / 2, left: -Math.PI / 2 };
@@ -665,7 +646,7 @@
           for (const a of ins) stub(a + Math.PI, false);
           for (const a of outs) stub(a, true);
         }
-        if (split) { c.restore(); return; } // Verteiler sieht aus wie ein normales Band (T-Stück)
+        if (split) { whiteFrame2d(c, s, 0.36); c.restore(); return; } // Verteiler: Band-T-Stück mit kleinem weißen Rahmen
         // Kasten mit Schatten
         c.fillStyle = 'rgba(0,0,0,0.25)';
         roundRect(c, -s * 0.33 + s * 0.04, -s * 0.33 + s * 0.05, s * 0.66, s * 0.66, s * 0.12); c.fill();
@@ -690,11 +671,11 @@
       const out = opts.role === 'out';
       c.translate(x + s / 2, y + s / 2);
       c.rotate(d * Math.PI / 2);
-      c.fillStyle = '#353b47';
+      c.fillStyle = '#2d3233';
       c.fillRect(-s / 2, -s / 2, s, s);
       const bx = out ? 0 : -s / 2;
       beltStrip(c, bx, -s * 0.4, s / 2, s * 0.8, s, t);
-      c.fillStyle = '#f1f4f9';
+      c.fillStyle = '#d2d7d8';
       roundRect(c, bx, -s / 2, s / 2, s * 0.1, s * 0.04); c.fill();
       roundRect(c, bx, s * 0.4, s / 2, s * 0.1, s * 0.04); c.fill();
       // Tor aus Stein mit dunkler Öffnung zur Bandseite
@@ -723,24 +704,22 @@
       c.rotate(d * Math.PI / 2);
       const a0 = Math.PI, a1 = Math.PI + k * Math.PI / 2;
       const arc = (r, w, col) => { c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'butt'; c.beginPath(); c.arc(s / 2, k * s / 2, r, a0, a1, k < 0); c.stroke(); };
-      arc(s / 2, s, '#353b47');
-      arc(s / 2, s * 0.8, '#4a5262');
-      arc(s * 0.95, s * 0.1, '#f1f4f9');
-      c.strokeStyle = '#e4e9f2';
-      c.lineWidth = Math.max(1.5, s * 0.08);
+      arc(s / 2, s, '#2d3233');
+      arc(s / 2, s * 0.8, '#2d3233');
+      arc(s * 0.95, s * 0.1, '#d2d7d8');
+      c.strokeStyle = '#4fb0c0';
+      c.lineWidth = Math.max(1.5, s * 0.075);
       c.lineCap = 'round';
-      c.lineJoin = 'round';
-      const off = (t * beltSpeed * 10 / 2) % (1 / 2);
-      for (let i = 0; i < 2; i++) {
-        const p = i / 2 + off;
+      const off = (t * beltSpeed * 10) % 1;
+      for (let i = -1; i < 1; i++) {
+        const p = i + off + 0.5;
+        if (p < 0 || p > 1) continue;
         const a = Math.PI + k * p * Math.PI / 2;
         const px = s / 2 + (s / 2) * Math.cos(a), py = k * s / 2 + (s / 2) * Math.sin(a);
         c.save();
         c.translate(px, py);
         c.rotate(Math.atan2(k * Math.cos(a), -k * Math.sin(a)));
-        c.beginPath();
-        c.moveTo(-s * 0.09, -s * 0.13); c.lineTo(s * 0.04, 0); c.lineTo(-s * 0.09, s * 0.13);
-        c.stroke();
+        c.beginPath(); c.arc(-s * 0.12, 0, s * 0.17, -0.95, 0.95); c.stroke();
         c.restore();
       }
       c.restore();
@@ -749,10 +728,10 @@
       c.translate(x + s / 2, y + s / 2);
       c.rotate(d * Math.PI / 2);
       // dunkler Grund über das ganze Feld, Gurt, helle runde Seitenschienen
-      c.fillStyle = '#353b47';
+      c.fillStyle = '#2d3233';
       c.fillRect(-s / 2, -s / 2, s, s);
       beltStrip(c, -s / 2, -s * 0.4, s, s * 0.8, s, t);
-      c.fillStyle = '#f1f4f9';
+      c.fillStyle = '#d2d7d8';
       if (!opts.openR) { roundRect(c, -s / 2, s * 0.4, s, s * 0.1, s * 0.04); c.fill(); }
       if (!opts.openL) { roundRect(c, -s / 2, -s / 2, s, s * 0.1, s * 0.04); c.fill(); }
       c.restore();
@@ -793,7 +772,7 @@
       c.save();
       c.translate(x + s / 2 + dx * s * 0.4, y + s / 2 + dy * s * 0.4);
       c.rotate(d * Math.PI / 2);
-      c.fillStyle = '#c7cbd6';
+      c.fillStyle = '#f07a3c';
       roundRect(c, -s * 0.12, -s * 0.18, s * 0.2, s * 0.36, s * 0.05);
       c.fill();
       c.restore();
@@ -1119,8 +1098,8 @@
     // Raster bei genug Zoom
     const [x0, y0] = toWorld(0, 0).map(Math.floor);
     const [x1, y1] = toWorld(innerWidth, innerHeight).map(Math.ceil);
-    if (s > 22) {
-      ctx.strokeStyle = `rgba(255,255,255,${Math.min(0.22, (s - 22) / 80)})`;
+    if (s > 14) {
+      ctx.strokeStyle = `rgba(20,50,25,${Math.min(0.32, (s - 14) / 60)})`;
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let x = Math.max(1, x0); x <= Math.min(world.w - 1, x1); x++) { const [sx] = toScreen(x, 0); ctx.moveTo(sx, oy); ctx.lineTo(sx, oy + H); }
